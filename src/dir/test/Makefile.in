@@ -1,0 +1,26 @@
+# Copyright 2000, International Business Machines Corporation and others.
+# All Rights Reserved.
+# 
+# This software has been released under the terms of the IBM Public
+# License.  For details, see the LICENSE file in the top-level source
+# directory or online at http://www.openafs.org/dl/license10.html
+
+srcdir=../../..
+include @TOP_OBJDIR@/src/config/Makefile.config
+include @TOP_OBJDIR@/src/config/Makefile.lwp
+
+
+LIBS = ${srcdir}/lib/libdir.a ${srcdir}/lib/util.a  ${srcdir}/lib/liblwp.a
+
+OBJS=test-salvage.o physio.o dtest.o
+
+all:	dtest
+
+install:	dtest 
+
+clean:
+	$(RM) -f *.o *.a test dtest core
+
+dtest:		dtest.o 
+	$(AFS_LDRULE) dtest.o $(LIBS)
+

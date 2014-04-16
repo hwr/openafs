@@ -1,0 +1,27 @@
+# Build rules for the OpenAFS util test suite.
+
+srcdir=@srcdir@
+abs_top_builddir=@abs_top_builddir@
+include @TOP_OBJDIR@/src/config/Makefile.config
+include @TOP_OBJDIR@/src/config/Makefile.lwp
+
+MODULE_CFLAGS = -I$(srcdir)/../..
+
+LIBS = ../tap/libtap.a \
+       $(abs_top_builddir)/lib/util.a \
+       $(abs_top_builddir)/lib/libopr.a
+
+tests = ktime-t exec-alt-t
+
+all check test tests: $(tests)
+
+ktime-t: ktime-t.o $(LIBS)
+	$(AFS_LDRULE) ktime-t.o $(LIBS) $(XLIBS)
+
+exec-alt-t: exec-alt-t.o $(LIBS)
+	$(AFS_LDRULE) exec-alt-t.o $(LIBS) $(XLIBS)
+
+install:
+
+clean distclean:
+	$(RM) -f $(tests) *.o core

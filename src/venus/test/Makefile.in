@@ -1,0 +1,36 @@
+# Copyright 2000, International Business Machines Corporation and others.
+# All Rights Reserved.
+# 
+# This software has been released under the terms of the IBM Public
+# License.  For details, see the LICENSE file in the top-level source
+# directory or online at http://www.openafs.org/dl/license10.html
+
+srcdir=@srcdir@
+include @TOP_OBJDIR@/src/config/Makefile.config
+include @TOP_OBJDIR@/src/config/Makefile.lwp
+
+
+
+INCDIRS= -I${TOP_OBJDIR}/src/config -I${TOP_INCDIR} -I..
+LDIRS= -L${TOP_LIBDIR} -L..
+LIBS= -lsys -lubik -lvldb -lauth -lrxkad -lafshcrypto_lwp \
+      -lafscom_err -lcmd -lrx -llwp -lafsutil -lopr \
+      $(LIB_roken) $(XLIBS)
+
+all test:  fulltest owntest idtest getinitparams
+
+install:
+dest:
+
+fulltest: fulltest.o
+	$(AFS_LDRULE) $@.o $(LDIRS) $(LIBS)
+owntest: owntest.o
+	$(AFS_LDRULE) $@.o $(LDIRS) $(LIBS)
+idtest: idtest.o
+	$(AFS_LDRULE) $@.o $(LDIRS) $(LIBS)
+getinitparams: getinitparams.o
+	$(AFS_LDRULE) $@.o $(LDIRS) $(LIBS)
+
+clean:
+	$(RM) -f *.o fulltest owntest idtest getinitparams
+

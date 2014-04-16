@@ -1,0 +1,83 @@
+# Copyright 2000, International Business Machines Corporation and others.
+# All Rights Reserved.
+# 
+# This software has been released under the terms of the IBM Public
+# License.  For details, see the LICENSE file in the top-level source
+# directory or online at http://www.openafs.org/dl/license10.html
+
+srcdir=@srcdir@
+include @TOP_OBJDIR@/src/config/Makefile.config
+include @TOP_OBJDIR@/src/config/Makefile.lwp
+
+
+LDIRS= -L.. -L${TOP_LIBDIR}
+LIBS= ${TOP_LIBDIR}/libcmd.a  ../librx.a ${TOP_LIBDIR}/liblwp.a \
+	 ${TOP_LIBDIR}/util.a ${TOP_LIBDIR}/libsys.a ${XLIBS}
+
+MODULE_CFLAGS=-DRXDEBUG
+
+RXTESTOBJS = testclient.o testserver.o kstest.o kctest.o
+
+BASICINCLS =  ../rx_clock.h ../rx_queue.h ../rx_event.h
+
+LINK = $(AFS_LDRULE) $@.o ${LIBS}
+MT_LINK = $(CC) $(MT_CFLAGS) $(COMMON_CFLAGS) $(AFS_LDFLAGS) -o $@ \
+	  $@.o $(TOP_LIBDIR)/libafsrpc.a $(TOP_LIBDIR)/libopr.a \
+	  $(LIB_hcrypto) $(LIB_roken) \
+	  $(MT_LIBS) $(XLIBS)
+
+TESTS = testclient testserver kstest kctest testqueue tableGen generator
+
+TH_TESTS = th_testserver th_testclient
+
+
+all: test
+
+test tests: ${TESTS}
+
+th_test th_tests: ${TH_TESTS}
+
+testclient: ../librx.a testclient.o
+	${LINK}
+
+testserver: ../librx.a testserver.o
+	${LINK}
+
+kstest: ../librx.a kstest.o
+	${LINK}
+
+kctest: ../librx.a kctest.o
+	${LINK}
+
+rxperf: rxperf.o ../librx.a
+	${LINK}
+
+# th_ versions only have link lines for Solaris now.
+th_testclient: th_testclient.o $(TOP_LIBDIR)/libafsrpc.a
+	$(MT_LINK)
+
+th_testclient.o: testclient.c
+	$(MT_CC) $(COMMON_CFLAGS) $(MT_CFLAGS) -c -o th_testclient.o \
+		${srcdir}/testclient.c
+
+th_testserver: th_testserver.o $(TOP_LIBDIR)/libafsrpc.a
+	$(MT_LINK)
+
+th_testserver.o: testserver.c
+	$(MT_CC) $(COMMON_CFLAGS) $(MT_CFLAGS) -c -o th_testserver.o \
+		${srcdir}/testserver.c
+
+th_rxperf: th_rxperf.o ${TOP_LIBDIR}/libafsrpc.a ${TOP_LIBDIR}/libopr.a
+	$(MT_LINK)
+
+th_rxperf.o: rxperf.c
+	$(MT_CC) $(COMMON_CFLAGS) $(MT_CFLAGS) -c $(srcdir)/rxperf.c \
+		-o th_rxperf.o
+
+testqueue: ../librx.a testqueue.o
+	${LINK}
+
+${RXTESTOBJS}: ${BASICINCLS} ../rx.h
+
+clean:
+	$(RM) -f *.o *.a ${TESTS} ${TH_TESTS} core

@@ -1,0 +1,56 @@
+# Copyright 2000, International Business Machines Corporation and others.
+# All Rights Reserved.
+# 
+# This software has been released under the terms of the IBM Public
+# License.  For details, see the LICENSE file in the top-level source
+# directory or online at http://www.openafs.org/dl/license10.html
+
+srcdir=@srcdir@
+include @TOP_OBJDIR@/src/config/Makefile.config
+include @TOP_OBJDIR@/src/config/Makefile.lwp
+
+
+all: ${TOP_LIBDIR}/libprocmgmt.a ${TOP_INCDIR}/afs/procmgmt.h
+
+buildtools: ${TOP_INCDIR}/afs/procmgmt.h
+
+${TOP_LIBDIR}/libprocmgmt.a: libprocmgmt.a
+	${INSTALL_DATA} $? $@
+
+${TOP_INCDIR}/afs/procmgmt.h: ${srcdir}/procmgmt.h
+	${INSTALL_DATA} $? $@
+
+#
+# Build targets
+#
+libprocmgmt.a: procmgmt_unix.o AFS_component_version_number.o
+	$(RM) -f $@
+	$(AR) crv $@ procmgmt_unix.o AFS_component_version_number.o
+	$(RANLIB) $@
+
+procmgmt_unix.o: ${srcdir}/procmgmt_unix.c ${srcdir}/procmgmt.h
+
+#
+# Install targets
+#
+install: libprocmgmt.a
+	${INSTALL} -d ${DESTDIR}${libdir}/afs
+	${INSTALL} -d ${DESTDIR}${includedir}/afs
+	${INSTALL_DATA} libprocmgmt.a ${DESTDIR}${libdir}/afs/libprocmgmt.a
+	${INSTALL_DATA} ${srcdir}/procmgmt.h \
+		${DESTDIR}${includedir}/afs/procmgmt.h
+
+dest: libprocmgmt.a
+	${INSTALL} -d ${DEST}/lib/afs
+	${INSTALL} -d ${DEST}/include/afs
+	${INSTALL_DATA} libprocmgmt.a ${DEST}/lib/afs/libprocmgmt.a
+	${INSTALL_DATA} ${srcdir}/procmgmt.h \
+		${DEST}/include/afs/procmgmt.h
+
+#
+# Misc targets
+#
+clean:
+	$(RM) -f *.a *.o core AFS_component_version_number.c
+
+include ../config/Makefile.version

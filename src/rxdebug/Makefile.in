@@ -1,0 +1,51 @@
+# Copyright 2000, International Business Machines Corporation and others.
+# All Rights Reserved.
+# 
+# This software has been released under the terms of the IBM Public
+# License.  For details, see the LICENSE file in the top-level source
+# directory or online at http://www.openafs.org/dl/license10.html
+
+srcdir=@srcdir@
+include @TOP_OBJDIR@/src/config/Makefile.config
+include @TOP_OBJDIR@/src/config/Makefile.lwp
+
+
+LIBS=${TOP_LIBDIR}/librx.a \
+     ${TOP_LIBDIR}/liblwp.a \
+     ${TOP_LIBDIR}/libcmd.a \
+     ${TOP_LIBDIR}/libsys.a \
+     ${TOP_LIBDIR}/libopr.a \
+     ${TOP_LIBDIR}/libafsutil.a
+
+all: rxdebug rxdumptrace
+
+rxdebug.o: rxdebug.c
+
+CFLAGS_rxdumptrace.o=-DDUMPTRACE
+rxdumptrace.o: ../rx/rx_trace.c
+	$(AFS_CCRULE) $(srcdir)/../rx/rx_trace.c
+
+rxdumptrace: rxdumptrace.o ${LIBS}
+	$(AFS_LDRULE) rxdumptrace.o  ${LIBS} $(LIB_roken) ${XLIBS}
+
+rxdebug: rxdebug.o ${LIBS}
+	$(AFS_LDRULE) rxdebug.o ${LIBS} $(LIB_roken) ${XLIBS}
+
+#
+# Install targets
+#
+install: rxdebug
+	${INSTALL} -d ${DESTDIR}${sbindir}
+	${INSTALL_PROGRAM} rxdebug ${DESTDIR}${sbindir}/rxdebug
+
+dest: rxdebug
+	${INSTALL} -d ${DEST}/etc
+	${INSTALL_PROGRAM} rxdebug ${DEST}/etc/rxdebug
+
+#
+# Misc. targets
+#
+clean:
+	$(RM) -f *.o *.a core *_component_version_number.c rxdumptrace rxdebug
+
+include ../config/Makefile.version

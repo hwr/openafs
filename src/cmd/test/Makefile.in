@@ -1,0 +1,33 @@
+# Copyright 2000, International Business Machines Corporation and others.
+# All Rights Reserved.
+# 
+# This software has been released under the terms of the IBM Public
+# License.  For details, see the LICENSE file in the top-level source
+# directory or online at http://www.openafs.org/dl/license10.html
+
+srcdir=@srcdir@
+include @TOP_OBJDIR@/src/config/Makefile.config
+include @TOP_OBJDIR@/src/config/Makefile.lwp
+
+
+LIBS=-lcmd $(TOP_LIBDIR)/libafscom_err.a -lafsutil $(LIB_roken) $(XLIBS)
+
+all: test
+test tests: ctest dtest itest
+
+itest: itest.o 
+	$(AFS_LDRULE) itest.o $(LDIRS) $(LIBS) 
+
+ctest: ctest.o
+	$(AFS_LDRULE) ctest.o $(LDIRS) $(LIBS)
+
+dtest: dtest.o
+	$(AFS_LDRULE) dtest.o $(LDIRS) $(LIBS)
+
+system: test
+
+clean:
+	$(RM) -f  *.a *.o ctest dtest itest core
+
+install:
+dest:

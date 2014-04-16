@@ -1,0 +1,26 @@
+# Copyright 2000, International Business Machines Corporation and others.
+# All Rights Reserved.
+# 
+# This software has been released under the terms of the IBM Public
+# License.  For details, see the LICENSE file in the top-level source
+# directory or online at http://www.openafs.org/dl/license10.html
+
+srcdir=@srcdir@
+include @TOP_OBJDIR@/src/config/Makefile.config
+include @TOP_OBJDIR@/src/config/Makefile.pthread
+
+
+all: ${TOP_INCDIR}/afs/afs_Admin.h
+
+${TOP_INCDIR}/afs/afs_Admin.h: afs_Admin.h
+	${INSTALL_DATA} $? $@
+
+install:
+	${INSTALL} -d ${DESTDIR}${includedir}/afs
+	${INSTALL_DATA} ${srcdir}/afs_Admin.h ${DESTDIR}${includedir}/afs/afs_Admin.h
+
+dest:
+	${INSTALL} -d ${DEST}/include/afs
+	${INSTALL_DATA} ${srcdir}/afs_Admin.h ${DEST}/include/afs/afs_Admin.h
+
+clean:

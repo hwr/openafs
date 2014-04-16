@@ -1,0 +1,62 @@
+# Copyright 2000, International Business Machines Corporation and others.
+# All Rights Reserved.
+# 
+# This software has been released under the terms of the IBM Public
+# License.  For details, see the LICENSE file in the top-level source
+# directory or online at http://www.openafs.org/dl/license10.html
+
+srcdir=@srcdir@
+include @TOP_OBJDIR@/src/config/Makefile.config
+include @TOP_OBJDIR@/src/config/Makefile.pthread
+
+
+KAUTH= ${srcdir}/../../kauth
+
+ADMINOBJS = afs_kasAdmin.o
+
+KAUTHOBJS = \
+	kauth.cs.o \
+	kauth.xdr.o \
+	kaaux.o
+
+LIBOBJS = ${ADMINOBJS} ${KAUTHOBJS}
+
+all: ${TOP_INCDIR}/afs/afs_kasAdmin.h ${TOP_LIBDIR}/libkasadmin.a
+
+${TOP_INCDIR}/afs/afs_kasAdmin.h: afs_kasAdmin.h
+	${INSTALL_DATA} $? $@
+
+${TOP_LIBDIR}/libkasadmin.a: libkasadmin.a
+	${INSTALL_DATA} $? $@
+
+install: afs_kasAdmin.h libkasadmin.a
+	${INSTALL} -d ${DESTDIR}${includedir}/afs
+	${INSTALL} -d ${DESTDIR}${libdir}/afs
+	${INSTALL_DATA} ${srcdir}/afs_kasAdmin.h ${DESTDIR}${includedir}/afs/afs_kasAdmin.h
+	${INSTALL_DATA} libkasadmin.a ${DESTDIR}${libdir}/afs/libkasadmin.a
+
+dest: afs_kasAdmin.h libkasadmin.a
+	${INSTALL} -d ${DEST}/include/afs
+	${INSTALL} -d ${DEST}/lib/afs
+	${INSTALL_DATA} ${srcdir}/afs_kasAdmin.h ${DEST}/include/afs/afs_kasAdmin.h
+	${INSTALL_DATA} libkasadmin.a ${DEST}/lib/afs/libkasadmin.a
+
+libkasadmin.a: ${LIBOBJS}
+	-$(RM) -f $@
+	$(AR) crv $@ ${LIBOBJS}
+	${RANLIB} $@
+
+CFLAGS_afs_kasAdmin.o = @CFLAGS_NOERROR@
+afs_kasAdmin.o: afs_kasAdmin.c afs_kasAdmin.h
+
+kauth.cs.o: ../../kauth/kauth.cs.c
+	$(AFS_CCRULE) ../../kauth/kauth.cs.c
+
+kauth.xdr.o: ../../kauth/kauth.xdr.c
+	$(AFS_CCRULE) ../../kauth/kauth.xdr.c
+
+kaaux.o: ${KAUTH}/kaaux.c
+	$(AFS_CCRULE) $(KAUTH)/kaaux.c
+
+clean:
+	$(RM) -f *.o libkasadmin*

@@ -1,0 +1,37 @@
+# Copyright 2000, International Business Machines Corporation and others.
+# All Rights Reserved.
+# 
+# This software has been released under the terms of the IBM Public
+# License.  For details, see the LICENSE file in the top-level source
+# directory or online at http://www.openafs.org/dl/license10.html
+
+srcdir=@srcdir@
+include @TOP_OBJDIR@/src/config/Makefile.config
+include @TOP_OBJDIR@/src/config/Makefile.lwp
+
+
+all: fms
+
+FMSLIBS=${TOP_LIBDIR}/libcmd.a \
+        ${TOP_LIBDIR}/libusd.a \
+	${XLIBS} \
+	${TOP_LIBDIR}/util.a \
+	$(TOP_LIBDIR)/libopr.a
+
+fms: fms.o
+	$(AFS_LDRULE) fms.o ${FMSLIBS} $(LIB_roken)
+
+fms.o:  fms.c AFS_component_version_number.o
+
+install: fms
+	${INSTALL} -d ${DESTDIR}${sbindir}
+	${INSTALL_PROGRAM} fms ${DESTDIR}${sbindir}/fms
+
+dest: fms
+	${INSTALL} -d ${DEST}/etc
+	${INSTALL_PROGRAM} fms ${DEST}/etc/fms
+
+clean:
+	$(RM) -f *.o fms AFS_component_version_number.c
+
+include ../config/Makefile.version

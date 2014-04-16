@@ -1,0 +1,98 @@
+# Copyright 2000, International Business Machines Corporation and others.
+# All Rights Reserved.
+# 
+# This software has been released under the terms of the IBM Public
+# License.  For details, see the LICENSE file in the top-level source
+# directory or online at http://www.openafs.org/dl/license10.html
+
+srcdir=@srcdir@
+include @TOP_OBJDIR@/src/config/Makefile.config
+include @TOP_OBJDIR@/src/config/Makefile.pthread
+include @TOP_OBJDIR@/src/config/Makefile.libtool
+
+LT_objs = afs_account.lo afs_session.lo afs_password.lo \
+	  afs_pam_msg.lo afs_message.lo AFS_component_version_number.lo
+LT_deps = $(top_builddir)/src/kauth/liboafs_kauth.la \
+	  $(top_builddir)/src/auth/liboafs_auth.la
+
+MODULE_CFLAGS=${PAM_CFLAGS}
+
+all: test_pam pam_afs.la pam_afs.krb.la
+
+CFLAGS_afs_setcred_krb.lo = -DAFS_KERBEROS_ENV
+CFLAGS_afs_auth_krb.lo   = -DAFS_KERBEROS_ENV
+CFLAGS_afs_util_krb.lo   = -DAFS_KERBEROS_ENV
+CFLAGS_ktc_krb.lo        = -DAFS_KERBEROS_ENV -I../auth
+
+afs_setcred.lo: afs_setcred.c afs_pam_msg.h afs_message.h afs_util.h
+afs_setcred_krb.lo: afs_setcred.c afs_pam_msg.h afs_message.h afs_util.h
+	$(LT_CCRULE) ${srcdir}/afs_setcred.c
+
+afs_auth.lo: afs_auth.c afs_pam_msg.h afs_message.h afs_util.h
+afs_auth_krb.lo: afs_auth.c afs_pam_msg.h afs_message.h afs_util.h
+	$(LT_CCRULE) ${srcdir}/afs_auth.c
+
+afs_util.lo: afs_util.c afs_pam_msg.h afs_message.h afs_util.h
+afs_util_krb.lo: afs_util.c afs_pam_msg.h afs_message.h afs_util.h
+	$(LT_CCRULE) ${srcdir}/afs_util.c
+
+ktc_krb.lo: ${srcdir}/../auth/ktc.c ${TOP_INCDIR}/afs/cellconfig.h \
+		${TOP_INCDIR}/afs/auth.h ${srcdir}/../auth/keys.h \
+		${TOP_INCDIR}/afs/vice.h
+	$(LT_CCRULE) $(srcdir)/../auth/ktc.c
+
+pam_afs.la: $(LT_objs) $(LT_deps) \
+		afs_setcred.lo afs_auth.lo afs_util.lo \
+		pam_afs.map
+	$(LIBTOOL) --quiet --mode=link --tag=CC $(MT_CC) $(XLDFLAGS) -rpath $(libdir) \
+		-module -no-undefined -o pam_afs.la \
+		afs_setcred.lo afs_auth.lo afs_util.lo $(LT_objs) $(LT_deps) \
+		$(PAM_LIBS) $(LDFLAGS_hcrypto) $(LDFLAGS_roken) \
+		$(LIB_hcrypto) $(LIB_roken)
+
+pam_afs.krb.la: $(LT_objs) $(LT_deps) \
+		afs_setcred_krb.lo afs_auth_krb.lo afs_util_krb.lo \
+		ktc_krb.lo pam_afs.map
+	$(LIBTOOL) --quiet --mode=link --tag=CC $(MT_CC) $(XLDFLAGS) -rpath $(libdir) \
+		-module -no-undefined -o pam_afs.krb.la \
+		afs_setcred_krb.lo afs_auth_krb.lo afs_util_krb.lo ktc_krb.lo \
+		$(LT_objs) $(LT_deps) $(PAM_LIBS) $(LDFLAGS_hcrypto) $(LDFLAGS_roken) \
+		$(LIB_hcrypto) $(LIB_roken)
+
+test_pam: test_pam.o
+	$(Q)set -x; \
+	case "$(SYS_NAME)" in \
+	hp_ux* | ia64_hpux*) \
+		$(AFS_LDRULE_NOQ) test_pam.o ${PAM_LIBS};; \
+	sun*_5*) \
+		$(AFS_LDRULE_NOQ) test_pam.o ${PAM_LIBS};; \
+	*linux*) \
+		$(AFS_LDRULE_NOQ) -rdynamic test_pam.o -lpam -ldl;; \
+	*fbsd*| *nbsd*) \
+		$(AFS_LDRULE_NOQ) -rdynamic test_pam.o -lpam ;; \
+	*) \
+		echo No link line for system $(SYS_NAME). ;; \
+	esac
+
+install: pam_afs.la pam_afs.krb.la
+	${INSTALL} -d ${DESTDIR}${libdir}
+	$(INSTALL_DATA) .libs/pam_afs.so ${DESTDIR}${libdir}
+	$(INSTALL_DATA) .libs/pam_afs.krb.so ${DESTDIR}${libdir}
+
+dest: pam_afs.la pam_afs.krb.la
+	${INSTALL} -d ${DEST}/lib
+	$(INSTALL_DATA) .libs/pam_afs.so ${DEST}/lib
+	$(INSTALL_DATA) .libs/pam_afs.krb.so ${DEST}/lib
+
+afs_pam_msg.o: afs_pam_msg.c afs_pam_msg.h afs_message.h
+afs_message.o: afs_message.c afs_message.h
+
+#
+# Misc. targets
+#
+clean:
+	$(LT_CLEAN)
+	$(RM) -f *.a *.o *.so.1 test_pam core *~ \
+		AFS_component_version_number.c pam_afs.exp
+
+include ../config/Makefile.version

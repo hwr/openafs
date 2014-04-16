@@ -1,0 +1,185 @@
+# A roken library for AFS
+
+LIBMAJOR=1
+LIBMINOR=1
+
+srcdir=@srcdir@
+include @TOP_OBJDIR@/src/config/Makefile.config
+include @TOP_OBJDIR@/src/config/Makefile.shared
+
+
+HEADERS = ${TOP_INCDIR}/base64.h \
+	  ${TOP_INCDIR}/roken.h \
+	  ${TOP_INCDIR}/roken-common.h
+
+UPSTREAM = $(TOP_SRCDIR)/external/heimdal/roken
+
+SHLIBOBJ = librokenafs.${SHLIB_SUFFIX}.${LIBMAJOR}.${LIBMINOR}
+
+all: $(ROKEN_HEADERS) $(HEADERS) \
+	$(TOP_LIBDIR)/$(SHLIBOBJ) \
+	$(TOP_LIBDIR)/librokenafs.a
+
+buildtools: $(ROKEN_HEADERS) $(HEADERS) $(TOP_LIBDIR)/librokenafs.a
+
+install: librokenafs.a $(SHLIBOBJ)
+	$(TOP_OBJDIR)/src/config/shlib-install -d $(DESTDIR)$(libdir) \
+		-l librokenafs -M $(LIBMAJOR) -m $(LIBMINOR)
+	$(INSTALL_DATA) librokenafs.a $(DESTDIR)$(libdir)/librokenafs.a
+
+dest: librokenafs.a $(SHLIBOBJ)
+	$(TOP_OBJDIR)/src/config/shlib-install -d $(DEST)/lib \
+		-l librokenafs -M $(LIBMAJOR) -m $(LIBMINOR)
+	$(INSTALL_DATA) librokenafs.a $(DEST)/lib/librokenafs.a
+
+clean:
+	$(RM) -f $(OBJECTS) $(SHLIBOBJ) librokenafs.a librokenafs.exp \
+		err.h
+
+OBJECTS = $(ROKEN_LIBOBJS) \
+	  base64.o \
+	  cloexec.o ct.o hex.o issuid.o mkdir.o net_read.o net_write.o \
+	  rename.o socket.o snprintf.o warnerr.o
+
+$(TOP_LIBDIR)/$(SHLIBOBJ): $(SHLIBOBJ)
+	$(TOP_OBJDIR)/src/config/shlib-install -d $(TOP_LIBDIR) \
+		-l librokenafs -M $(LIBMAJOR) -m $(LIBMINOR)
+
+$(SHLIBOBJ): $(OBJECTS) librokenafs.map
+	$(TOP_OBJDIR)/src/config/shlib-build -i -d $(srcdir) -l librokenafs \
+		-M $(LIBMAJOR) -m $(LIBMINOR) -- \
+		$(OBJECTS) $(MT_LIBS)
+
+$(TOP_LIBDIR)/librokenafs.a: librokenafs.a
+	$(INSTALL_DATA) $? $@
+
+librokenafs.a: $(OBJECTS)
+	$(RM) -f $@
+	$(AR) crv $@ $(OBJECTS)
+	$(RANLIB) $@
+
+$(TOP_INCDIR)/base64.h: ${UPSTREAM}/base64.h
+	$(INSTALL_DATA) $? $@
+
+$(TOP_INCDIR)/err.h: ${UPSTREAM}/err.hin
+	cp $? $@
+
+$(TOP_INCDIR)/roken.h: $(UPSTREAM)/roken.h.in
+	$(INSTALL_DATA) $? $@
+
+$(TOP_INCDIR)/roken-common.h: $(UPSTREAM)/roken-common.h
+	$(INSTALL_DATA) $? $@
+
+err.h: ${UPSTREAM}/err.hin
+	cp $? $@
+
+base64.o: $(UPSTREAM)/base64.c ${HEADERS}
+	$(AFS_CCRULE) $(UPSTREAM)/base64.c
+
+cloexec.o: ${UPSTREAM}/cloexec.c ${HEADERS}
+	$(AFS_CCRULE) $(UPSTREAM)/cloexec.c
+
+ct.o: ${UPSTREAM}/ct.c ${HEADERS}
+	$(AFS_CCRULE) $(UPSTREAM)/ct.c
+
+daemon.o: ${UPSTREAM}/daemon.c ${HEADERS}
+	$(AFS_CCRULE) $(UPSTREAM)/daemon.c
+
+ecalloc.o: ${UPSTREAM}/ecalloc.c ${HEADERS}
+	$(AFS_CCRULE) $(UPSTREAM)/ecalloc.c
+
+emalloc.o: ${UPSTREAM}/emalloc.c ${HEADERS}
+	$(AFS_CCRULE) $(UPSTREAM)/emalloc.c
+
+erealloc.o: ${UPSTREAM}/erealloc.c ${HEADERS}
+	$(AFS_CCRULE) $(UPSTREAM)/erealloc.c
+
+err.o: ${UPSTREAM}/err.c err.h ${HEADERS}
+	$(AFS_CCRULE) $(UPSTREAM)/err.c
+
+errx.o: ${UPSTREAM}/errx.c err.h ${HEADERS}
+	$(AFS_CCRULE) $(UPSTREAM)/errx.c
+
+flock.o: ${UPSTREAM}/flock.c ${HEADERS}
+	$(AFS_CCRULE) $(UPSTREAM)/flock.c
+
+getopt.o: ${UPSTREAM}/getopt.c ${HEADERS}
+	$(AFS_CCRULE) $(UPSTREAM)/getopt.c
+
+getprogname.o: ${UPSTREAM}/getprogname.c ${HEADERS}
+	$(AFS_CCRULE) $(UPSTREAM)/getprogname.c
+
+hex.o: ${UPSTREAM}/hex.c ${HEADERS}
+	$(AFS_CCRULE) $(UPSTREAM)/hex.c
+
+issuid.o: ${UPSTREAM}/issuid.c ${HEADERS}
+	$(AFS_CCRULE) $(UPSTREAM)/issuid.c
+
+mkstemp.o: ${UPSTREAM}/mkstemp.c ${HEADERS}
+	$(AFS_CCRULE) $(UPSTREAM)/mkstemp.c
+
+mkdir.o: ${UPSTREAM}/mkdir.c ${HEADERS}
+	$(AFS_CCRULE) $(UPSTREAM)/mkdir.c
+
+net_read.o: ${UPSTREAM}/net_read.c ${HEADERS}
+	$(AFS_CCRULE) $(UPSTREAM)/net_read.c
+
+net_write.o: ${UPSTREAM}/net_write.c ${HEADERS}
+	$(AFS_CCRULE) $(UPSTREAM)/net_write.c
+
+rename.o: ${UPSTREAM}/rename.c ${HEADERS}
+	$(AFS_CCRULE) $(UPSTREAM)/rename.c
+
+setenv.o: ${UPSTREAM}/setenv.c ${HEADERS}
+	$(AFS_CCRULE) $(UPSTREAM)/setenv.c
+
+setprogname.o: ${UPSTREAM}/setprogname.c ${HEADERS}
+	$(AFS_CCRULE) $(UPSTREAM)/setprogname.c
+
+socket.o: ${UPSTREAM}/socket.c ${HEADERS}
+	$(AFS_CCRULE) $(UPSTREAM)/socket.c
+
+# The upstream snprintf.c has some pointer warnings in it
+CFLAGS_snprintf.o = @CFLAGS_NOERROR@
+
+snprintf.o: ${UPSTREAM}/snprintf.c ${HEADERS}
+	$(AFS_CCRULE) $(UPSTREAM)/snprintf.c
+
+strlcat.o: ${UPSTREAM}/strlcat.c ${HEADERS}
+	$(AFS_CCRULE) $(UPSTREAM)/strlcat.c
+
+strlcpy.o: ${UPSTREAM}/strlcpy.c ${HEADERS}
+	$(AFS_CCRULE) $(UPSTREAM)/strlcpy.c
+
+strnlen.o: ${UPSTREAM}/strnlen.c ${HEADERS}
+	$(AFS_CCRULE) $(UPSTREAM)/strnlen.c
+
+strsep.o: ${UPSTREAM}/strsep.c ${HEADERS}
+	$(AFS_CCRULE) $(UPSTREAM)/strsep.c
+
+unsetenv.o: ${UPSTREAM}/unsetenv.c ${HEADERS}
+	$(AFS_CCRULE) $(UPSTREAM)/unsetenv.c
+
+verr.o: ${UPSTREAM}/verr.c err.h ${HEADERS}
+	$(AFS_CCRULE) $(UPSTREAM)/verr.c
+
+verrx.o: ${UPSTREAM}/verrx.c err.h ${HEADERS}
+	$(AFS_CCRULE) $(UPSTREAM)/verrx.c
+
+vsyslog.o: ${UPSTREAM}/vsyslog.c ${HEADERS}
+	$(AFS_CCRULE) $(UPSTREAM)/vsyslog.c
+
+vwarn.o: ${UPSTREAM}/vwarn.c err.h ${HEADERS}
+	$(AFS_CCRULE) $(UPSTREAM)/vwarn.c
+
+vwarnx.o: ${UPSTREAM}/vwarnx.c err.h ${HEADERS}
+	$(AFS_CCRULE) $(UPSTREAM)/vwarnx.c
+
+warn.o: ${UPSTREAM}/warn.c err.h ${HEADERS}
+	$(AFS_CCRULE) $(UPSTREAM)/warn.c
+
+warnerr.o: ${UPSTREAM}/warnerr.c err.h ${HEADERS}
+	$(AFS_CCRULE) $(UPSTREAM)/warnerr.c
+
+warnx.o: ${UPSTREAM}/warnx.c err.h ${HEADERS}
+	$(AFS_CCRULE) $(UPSTREAM)/warnx.c

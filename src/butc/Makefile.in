@@ -1,0 +1,128 @@
+# Copyright 2000, International Business Machines Corporation and others.
+# All Rights Reserved.
+# 
+# This software has been released under the terms of the IBM Public
+# License.  For details, see the LICENSE file in the top-level source
+# directory or online at http://www.openafs.org/dl/license10.html
+#
+# Portions Copyright (c) 2003 Apple Computer, Inc.
+
+srcdir=@srcdir@
+include @TOP_OBJDIR@/src/config/Makefile.config
+include @TOP_OBJDIR@/src/config/Makefile.lwp
+
+
+INCLS=${TOP_INCDIR}/afs/partition.h ${TOP_INCDIR}/afs/volume.h \
+	${TOP_INCDIR}/afs/vlserver.h ${TOP_INCDIR}/rx/rx.h \
+	${TOP_INCDIR}/rx/xdr.h ${TOP_INCDIR}/afs/keys.h \
+	${TOP_INCDIR}/afs/cellconfig.h ${TOP_INCDIR}/ubik.h \
+	${TOP_INCDIR}/afs/cmd.h ${TOP_INCDIR}/afs/butc.h \
+	${TOP_INCDIR}/afs/tcdata.h ${TOP_INCDIR}/afs/bubasics.h \
+	${TOP_INCDIR}/afs/butm.h
+
+HACKS=${TOP_LIBDIR}/libdir.a
+
+LIBS=${TOP_LIBDIR}/libbudb.a \
+	$(TOP_LIBDIR)/libbxdb.a \
+	${TOP_LIBDIR}/libbubasics.a \
+        ${TOP_LIBDIR}/libbutm.a \
+	${TOP_LIBDIR}/libvolser.a \
+	${TOP_LIBDIR}/libvldb.a \
+        ${TOP_LIBDIR}/vlib.a \
+	${TOP_LIBDIR}/libacl.a \
+        ${TOP_LIBDIR}/libprot.a      \
+        ${TOP_LIBDIR}/libkauth.a \
+        ${TOP_LIBDIR}/libubik.a \
+        ${TOP_LIBDIR}/libauth.a \
+	${TOP_LIBDIR}/librxkad.a \
+        ${TOP_LIBDIR}/libsys.a  \
+	${TOP_LIBDIR}/librx.a \
+        ${TOP_LIBDIR}/libsys.a  \
+	${TOP_LIBDIR}/liblwp.a \
+        ${TOP_LIBDIR}/libcmd.a \
+	${TOP_LIBDIR}/libafscom_err.a \
+	${TOP_LIBDIR}/libafsrfc3961.a \
+	${TOP_LIBDIR}/libafshcrypto_lwp.a \
+	${TOP_LIBDIR}/libusd.a \
+	${TOP_LIBDIR}/util.a \
+	$(TOP_LIBDIR)/libopr.a \
+	${TOP_LIBDIR}/libprocmgmt.a
+
+TESTOBJS=test.o
+
+SOBJS=dbentries.o tcprocs.o lwps.o tcmain.o list.o recoverDb.o tcudbprocs.o \
+	dump.o tcstatus.o
+
+all: butc read_tape
+
+butc_test: ${TESTOBJS} ${LIBS} ${INCLS} ${HACKS}
+	$(AFS_LDRULE) ${TESTOBJS} ${LIBS} $(LIB_roken) ${XLIBS}
+
+tdump: tdump.c AFS_component_version_number.c
+	$(CC) $(AFS_CPPFLAGS) $(AFS_CFLAGS) $(AFS_LDFLAGS) \
+		${srcdir}/tdump.c -o tdump
+
+butc: ${SOBJS} ${LIBS} ${INCLS} ${HACKS}
+	@case ${SYS_NAME} in \
+	  rs_aix*) $(AFS_LDRULE_NOQ) ${SOBJS} ${LIBS} $(LIB_roken) ${XLIBS} \
+	  	/usr/lib/libc_r.a ;; \
+	  *)       $(AFS_LDRULE_NOQ) ${SOBJS} ${LIBS} $(LIB_roken) ${XLIBS} ;; \
+	esac
+
+tcmain.o: tcmain.c ${INCLS} AFS_component_version_number.c
+dbentries.o: dbentries.c ${INCLS}
+tcprocs.o: tcprocs.c ${INCLS}
+test.o: test.c ${INCLS} AFS_component_version_number.c
+lwps.o: lwps.c ${INCLS}
+list.o: list.c ${INCLS}
+recoverDb.o: recoverDb.c ${INCLS}
+tcudbprocs.o: tcudbprocs.c ${INCLS}
+dump.o: dump.c ${INCLS}
+tcstatus.o: tcstatus.c ${INCLS}
+
+read_tape: read_tape.c
+	$(CC) $(AFS_CPPFLAGS) $(AFS_CFLAGS) $(AFS_LDFLAGS) \
+		-o read_tape ${srcdir}/read_tape.c \
+		${TOP_LIBDIR}/libcmd.a ${TOP_LIBDIR}/libusd.a \
+		${TOP_LIBDIR}/util.a $(TOP_LIBDIR)/libopr.a \
+		$(LIB_roken) $(XLIBS)
+
+# Errors
+CFLAGS_tcudbprocs.o=@CFLAGS_NOERROR@
+
+clean:
+	$(RM) -f butc *.o butc_test core tdump read_tape AFS_component_version_number.c
+
+install: butc read_tape
+	${INSTALL} -d ${DESTDIR}${sbindir}
+	@case ${SYS_NAME} in \
+	alpha_dux*|sgi_*|sun4x_*|sunx86_*|rs_aix*|*linux*|hp_ux*) \
+		echo "Don't install butc for ${SYS_NAME} (will install from tbutc)" ;; \
+	*_darwin_[1-6][0-9]) \
+		echo ${INSTALL_PROGRAM} butc ${DESTDIR}${sbindir}/butc ; \
+		${INSTALL_PROGRAM} butc ${DESTDIR}${sbindir}/butc ;; \
+	*_darwin_*) \
+		echo "Don't install butc for ${SYS_NAME} (will install from tbutc)" ;; \
+	*) \
+		echo ${INSTALL_PROGRAM} butc ${DESTDIR}${sbindir}/butc ; \
+		${INSTALL_PROGRAM} butc ${DESTDIR}${sbindir}/butc ;; \
+	esac
+	${INSTALL_PROGRAM} read_tape ${DESTDIR}${sbindir}/read_tape
+
+dest: butc read_tape
+	${INSTALL} -d ${DEST}/etc
+	@case ${SYS_NAME} in \
+	alpha_dux*|sgi_*|sun4x_*|sunx86_*|rs_aix*|*linux*|hp_ux*) \
+		echo "Don't install butc for ${SYS_NAME} (will install from tbutc)" ;; \
+	*_darwin_[1-6][0-9]) \
+		echo ${INSTALL_PROGRAM} butc ${DEST}/etc/butc ; \
+		${INSTALL_PROGRAM} butc ${DEST}/etc/butc ;; \
+	*_darwin_*) \
+		echo "Don't install butc for ${SYS_NAME} (will install from tbutc)" ;; \
+	*) \
+		echo ${INSTALL_PROGRAM} butc ${DEST}/etc/butc ; \
+		${INSTALL_PROGRAM} butc ${DEST}/etc/butc ;; \
+	esac
+	${INSTALL_PROGRAM} read_tape ${DEST}/etc/read_tape
+
+include ../config/Makefile.version

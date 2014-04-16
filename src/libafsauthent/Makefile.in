@@ -1,0 +1,61 @@
+# Copyright 2000, International Business Machines Corporation and others.
+# All Rights Reserved.
+# 
+# This software has been released under the terms of the IBM Public
+# License.  For details, see the LICENSE file in the top-level source
+# directory or online at http://www.openafs.org/dl/license10.html
+
+# This is a pthread safe library containing ubikclient, auth, kauth.
+
+srcdir=@srcdir@
+include @TOP_OBJDIR@/src/config/Makefile.config
+include @TOP_OBJDIR@/src/config/Makefile.libtool
+
+LT_objs = \
+	$(top_builddir)/src/audit/libauthent_audit.la \
+	$(top_builddir)/src/auth/libauthent_auth.la   \
+	$(top_builddir)/src/kauth/libauthent_kauth.la \
+	$(top_builddir)/src/ubik/libauthent_ubik.la \
+	$(top_builddir)/src/sys/libauthent_sys.la \
+	$(top_builddir)/src/ptserver/libauthent_ptserver.la \
+	$(top_builddir)/src/volser/libauthent_volser.la \
+	$(top_builddir)/src/vlserver/libauthent_vlserver.la
+
+LT_deps = \
+	$(top_builddir)/src/opr/liboafs_opr.la \
+	$(top_builddir)/src/util/liboafs_util.la \
+	$(top_builddir)/src/libafsrpc/libafsrpc.la
+
+LT_libs = $(LIB_hcrypto) $(LIB_roken) $(LIB_crypt) $(LIB_AFSDB) $(MT_LIBS)
+
+all: libafsauthent.la libafsauthent_pic.la \
+	$(TOP_LIBDIR)/libafsauthent.a \
+	$(TOP_LIBDIR)/libafsauthent_pic.a
+
+libafsauthent.la: libafsauthent.la.sym $(LT_objs) $(LT_deps) libafsauthent_pic.la
+	$(LT_LDLIB_shlib) $(LT_objs) $(LT_deps) $(LT_libs)
+
+libafsauthent_pic.la: $(LT_objs)
+	$(LT_LDLIB_pic) $(LT_objs)
+
+libafsauthent.a: $(LT_objs) libafsauthent.la
+	$(LT_LDLIB_static) $(LT_objs)
+
+${TOP_LIBDIR}/libafsauthent.a: libafsauthent.a
+	${INSTALL_DATA} $? $@
+
+${TOP_LIBDIR}/libafsauthent_pic.a: libafsauthent_pic.la
+	${INSTALL_DATA} .libs/libafsauthent_pic.a $@
+
+clean:
+	$(LT_CLEAN)
+	$(RM) -f *.o libafsauthent.a
+
+install: libafsauthent.a libafsauthent_pic.la
+	${INSTALL} -d ${DESTDIR}${libdir}
+	${INSTALL_DATA}  libafsauthent.a ${DESTDIR}${libdir}/libafsauthent.a
+	${INSTALL_DATA}  .libs/libafsauthent_pic.a ${DESTDIR}${libdir}/libafsauthent_pic.a
+
+dest: libafsauthent.a
+	${INSTALL} -d ${DEST}/lib
+	${INSTALL_DATA} libafsauthent.a ${DEST}/lib/libafsauthent.a

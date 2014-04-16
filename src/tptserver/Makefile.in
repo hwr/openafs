@@ -1,0 +1,190 @@
+# Copyright 2000, International Business Machines Corporation and others.
+# All Rights Reserved.
+# 
+# This software has been released under the terms of the IBM Public
+# License.  For details, see the LICENSE file in the top-level source
+# directory or online at http://www.openafs.org/dl/license10.html
+
+srcdir=@srcdir@
+include @TOP_OBJDIR@/src/config/Makefile.config
+include @TOP_OBJDIR@/src/config/Makefile.pthread
+
+HELPER_SPLINT=@HELPER_SPLINT@
+ENABLE_PTHREADED_UBIK=@ENABLE_PTHREADED_UBIK@
+
+PTSERVER=$(srcdir)/../ptserver
+
+INCLS=${TOP_INCDIR}/ubik.h \
+	${TOP_INCDIR}/lock.h  \
+	${TOP_INCDIR}/lwp.h \
+	${TOP_INCDIR}/rx/rx.h \
+	${TOP_INCDIR}/rx/xdr.h \
+	${TOP_INCDIR}/afs/keys.h \
+	${TOP_INCDIR}/afs/cellconfig.h \
+	ptint.h
+
+LIBS_common= \
+	$(top_builddir)/src/ubik/liboafs_ubik.la \
+	$(top_builddir)/src/sys/liboafs_sys.la \
+	$(top_builddir)/src/rx/liboafs_rx.la \
+	$(top_builddir)/src/rxstat/liboafs_rxstat.la \
+	$(top_builddir)/src/lwp/liboafs_lwpcompat.la \
+	$(top_builddir)/src/rxkad/liboafs_rxkad.la \
+	$(top_builddir)/src/cmd/liboafs_cmd.la \
+	$(top_builddir)/src/util/liboafs_util.la \
+	$(top_builddir)/src/opr/liboafs_opr.la
+
+LIBS_server= \
+	$(top_builddir)/src/audit/liboafs_audit.la \
+	$(LIBS_common)
+
+LIBS_client= \
+	$(top_builddir)/src/ptserver/liboafs_prot.la \
+	$(LIBS_common)
+
+all: ptserver pts pt_util db_verify \
+	depinstall readgroup readpwd testpt
+
+generated: \
+	pterror.h pterror.c
+
+depinstall: 
+
+# When supergroups is enabled, some parts of ptserver cast between
+# incompatible structs.
+CFLAGS_ptutils.o = @CFLAGS_NOSTRICT@
+CFLAGS_ptprocs.o = @CFLAGS_NOSTRICT@
+
+#
+# Build targets
+#
+
+ptserver.o: ${PTSERVER}/ptserver.c ${INCLS}
+	$(AFS_CCRULE) $(PTSERVER)/ptserver.c
+
+ptutils.o: ${PTSERVER}/ptutils.c ${INCLS} pterror.h
+	$(AFS_CCRULE) $(PTSERVER)/ptutils.c
+
+ptprocs.o: ${PTSERVER}/ptprocs.c ${INCLS}
+	$(AFS_CCRULE) $(PTSERVER)/ptprocs.c
+
+utils.o: ${PTSERVER}/utils.c ${INCLS}
+	$(AFS_CCRULE) $(PTSERVER)/utils.c
+
+map.o: ${PTSERVER}/map.c ${INCLS}
+	$(AFS_CCRULE) $(PTSERVER)/map.c
+
+ptint.ss.c: ${PTSERVER}/ptint.xg
+	${RXGEN} -A -x -S -o $@ ${PTSERVER}/ptint.xg
+
+ptint.xdr.c: ${PTSERVER}/ptint.xg
+	${RXGEN} -A -x -c -o $@ ${PTSERVER}/ptint.xg
+
+ptint.h: ${PTSERVER}/ptint.xg
+	${RXGEN} -A -x -h -u -o $@ ${PTSERVER}/ptint.xg
+
+ptint.ss.c: ptint.h
+ptint.xdr.c: ptint.h
+
+ptserver: ptserver.o ptutils.o ptprocs.o ptint.ss.o ptint.xdr.o utils.o map.o \
+	  $(LIBS_server)
+	$(LT_LDRULE_static) ptserver.o ptutils.o ptprocs.o \
+		ptint.ss.o ptint.xdr.o utils.o map.o \
+		$(LIBS_server) \
+		$(LIB_hcrypto) $(LIB_roken) ${MT_LIBS} \
+		${XLIBS}
+
+db_verify.o: ${PTSERVER}/db_verify.c ${INCLS}
+	$(AFS_CCRULE) $(PTSERVER)/db_verify.c
+
+db_verify: db_verify.o $(LIBS_client)
+	$(LT_LDRULE_static) db_verify.o \
+		$(LIBS_client) $(LIB_hcrypto) $(LIB_roken) ${MT_LIBS} ${XLIBS}
+
+ptclient: ptclient.o AFS_component_version_number.o $(LIBS_client)
+	$(LT_LDRULE_static) ptclient.o \
+		$(LIBS_client) $(LIB_hcrypto) $(LIB_roken) ${MT_LIBS} ${XLIBS}
+
+ptclient.o: ${PTSERVER}/ptclient.c ${INCLS}
+	$(AFS_CCRULE) $(PTSERVER)/ptclient.c
+
+pts: pts.o $(LIBS_client) ${INCLS}
+	$(LT_LDRULE_static) pts.o \
+		${LIBS_client} $(LIB_hcrypto) $(LIB_roken) ${MT_LIBS} ${XLIBS}
+
+pts.o: ${PTSERVER}/pts.c
+	$(AFS_CCRULE) $(PTSERVER)/pts.c
+
+readgroup: readgroup.o $(LIBS_client)
+	$(LT_LDRULE_static) readgroup.o \
+		$(LIBS_client) $(LIB_hcrypto) $(LIB_roken) ${MT_LIBS} ${XLIBS}
+
+readgroup.o: ${PTSERVER}/readgroup.c ${INCLS}
+	$(AFS_CCRULE) $(PTSERVER)/readgroup.c
+
+readpwd: readpwd.o $(LIBS_client)
+	$(LT_LDRULE_static) readpwd.o \
+		$(LIBS_client) $(LIB_hcrypto) $(LIB_roken) ${MT_LIBS} ${XLIBS}
+
+readpwd.o: ${PTSERVER}/readpwd.c ${INCLS}
+	$(AFS_CCRULE) $(PTSERVER)/readpwd.c
+
+testpt: testpt.o $(LIBS_client)
+	$(LT_LDRULE_static) testpt.o -lm \
+		$(LIBS_client) $(LIB_hcrypto) $(LIB_roken) ${MT_LIBS} ${XLIBS}
+
+testpt.o: ${PTSERVER}/testpt.c ${INCLS}
+	$(AFS_CCRULE) $(PTSERVER)/testpt.c
+
+pt_util: pt_util.o ptutils.o ptubik.o utils.o map.o $(LIBS_client)
+	$(LT_LDRULE_static) pt_util.o ptutils.o ptubik.o utils.o map.o \
+		$(LIBS_client) $(LIB_hcrypto) $(LIB_roken) ${MT_LIBS} ${XLIBS}
+
+pt_util.o: ${PTSERVER}/pt_util.c
+	$(AFS_CCRULE) $(PTSERVER)/pt_util.c
+
+ptubik.o: ${PTSERVER}/ptubik.c ${INCLS}
+	$(AFS_CCRULE) $(PTSERVER)/ptubik.c
+
+pterror.c pterror.h: ${PTSERVER}/pterror.et
+	$(RM) -f pterror.h pterror.c
+	${COMPILE_ET} -p ${PTSERVER} pterror
+pterror.h: pterror.c
+
+prerror.h: pterror.h
+	${INSTALL} $? $@
+	echo '#define ERROR_TABLE_BASE_pr ERROR_TABLE_BASE_PT' >> $@
+
+#
+# Installation targets
+#
+install: ptserver pts pt_util db_verify
+	if [ "x$(ENABLE_PTHREADED_UBIK)" = "xyes" ] ; then \
+		${LT_INSTALL_PROGRAM} ptserver \
+			${DESTDIR}${afssrvlibexecdir}/ptserver; \
+		${LT_INSTALL_PROGRAM} pts ${DESTDIR}${afssrvbindir}/pts; \
+		${LT_INSTALL_PROGRAM} pts ${DESTDIR}${bindir}/pts; \
+		${LT_INSTALL_PROGRAM} pt_util ${DESTDIR}${afssrvsbindir}/pt_util; \
+		${LT_INSTALL_PROGRAM} db_verify \
+			${DESTDIR}${afssrvsbindir}/prdb_check; \
+	fi
+
+dest: ptserver pts pt_util db_verify
+	if [ "x$(ENABLE_PTHREADED_UBIK)" = "xyes" ] ; then \
+		${INSTALL_PROGRAM} ptserver ${DEST}/root.server/usr/afs/bin/ptserver; \
+		${INSTALL_PROGRAM} pts ${DEST}/root.server/usr/afs/bin/pts; \
+		${INSTALL_PROGRAM} pts ${DEST}/bin/pts; \
+		${INSTALL_PROGRAM} pt_util ${DEST}/root.server/usr/afs/bin/pt_util; \
+		${INSTALL_PROGRAM} db_verify ${DEST}/etc/prdb_check; \
+	fi
+
+#
+# Misc. targets
+#
+clean:
+	$(LT_CLEAN)
+	$(RM) -f *.a *.o ptserver ptint.cs.c ptint.ss.c ptclient ptint.xdr.c ptint.h \
+	pts readgroup readpwd db_verify testpt pt_util pterror.h pterror.c \
+	core AFS_component_version_number.c Kptint.cs.c Kptint.h Kptint.xdr.c
+
+include ../config/Makefile.version

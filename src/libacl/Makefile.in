@@ -1,0 +1,74 @@
+# Copyright 2000, International Business Machines Corporation and others.
+# All Rights Reserved.
+# 
+# This software has been released under the terms of the IBM Public
+# License.  For details, see the LICENSE file in the top-level source
+# directory or online at http://www.openafs.org/dl/license10.html
+
+srcdir=@srcdir@
+include @TOP_OBJDIR@/src/config/Makefile.config
+include @TOP_OBJDIR@/src/config/Makefile.lwp
+include @TOP_OBJDIR@/src/config/Makefile.lwptool
+
+LT_objs = aclprocs.lo netprocs.lo AFS_component_version_number.lo
+LT_deps = $(top_builddir)/src/ptserver/liboafs_prot.la
+LT_libs =
+
+#
+# Main targets
+#
+all: \
+	liboafs_acl.la \
+	${TOP_LIBDIR}/libacl.a \
+	depinstall
+
+depinstall: \
+	${TOP_INCDIR}/afs/acl.h \
+	${TOP_INCDIR}/afs/prs_fs.h 
+
+${TOP_LIBDIR}/libacl.a: libacl.a
+	${INSTALL_DATA} $? $@
+
+${TOP_INCDIR}/afs/acl.h: acl.h
+	${INSTALL_DATA} $? $@
+
+${TOP_INCDIR}/afs/prs_fs.h: prs_fs.h
+	${INSTALL_DATA} $? $@
+
+libacl.a: $(LT_objs)
+	$(LT_LDLIB_lwp) $(LT_objs)
+
+liboafs_acl.la: liboafs_acl.la.sym $(LT_objs) $(LT_deps)
+	$(LT_LDLIB_shlib) $(LT_objs) $(LT_deps) $(LT_libs)
+
+aclprocs.lo: aclprocs.c acl.h
+netprocs.lo: netprocs.c acl.h
+
+#
+# Installation targets
+#
+install: libacl.a acl.h prs_fs.h
+	${INSTALL} -d ${DESTDIR}${libdir}/afs
+	${INSTALL} -d ${DESTDIR}${includedir}/afs
+	${INSTALL_DATA} libacl.a ${DESTDIR}${libdir}/afs/libacl.a
+	${INSTALL_DATA} ${srcdir}/acl.h ${DESTDIR}${includedir}/afs/acl.h
+	${INSTALL_DATA} ${srcdir}/prs_fs.h ${DESTDIR}${includedir}/afs/prs_fs.h
+
+dest: libacl.a acl.h prs_fs.h
+	${INSTALL} -d ${DEST}/lib/afs
+	${INSTALL} -d ${DEST}/include/afs
+	${INSTALL_DATA} libacl.a ${DEST}/lib/afs/libacl.a
+	${INSTALL_DATA} ${srcdir}/acl.h ${DEST}/include/afs/acl.h
+	${INSTALL_DATA} ${srcdir}/prs_fs.h ${DEST}/include/afs/prs_fs.h
+
+#
+# Misc. targets
+#
+test:
+	cd test; $(MAKE)
+
+clean: 
+	$(LT_CLEAN)
+	$(RM) -f acltest *.o *.a core AFS_component_version_number.c
+
+include ../config/Makefile.version

@@ -1,0 +1,35 @@
+# Copyright 2000, International Business Machines Corporation and others.
+# All Rights Reserved.
+# 
+# This software has been released under the terms of the IBM Public
+# License.  For details, see the LICENSE file in the top-level source
+# directory or online at http://www.openafs.org/dl/license10.html
+
+srcdir=@srcdir@
+include @TOP_OBJDIR@/src/config/Makefile.config
+include @TOP_OBJDIR@/src/config/Makefile.lwp
+
+
+LDIRS=-L${TOP_LIBDIR} -L${DESTDIR}/lib/afs -L..
+LIBS= -lacl -lprot -lubik -lrx -llwp -lauth -lrxkad -lsys ${XLIBS}
+
+all: acltest
+
+install: 
+
+#
+# Build targets
+#
+acltest: acltest.o
+	$(AFS_LDRULE) $(LDIRS) $(LIBS) acltest.o
+
+acltest.o: acltest.c 
+
+#
+# Misc. targets
+#
+clean:
+	$(RM) -f *.o *.a acltest core
+
+dest: 
+

@@ -1,0 +1,176 @@
+# Copyright 2000, International Business Machines Corporation and others.
+# All Rights Reserved.
+# 
+# This software has been released under the terms of the IBM Public
+# License.  For details, see the LICENSE file in the top-level source
+# directory or online at http://www.openafs.org/dl/license10.html
+
+srcdir=@srcdir@
+include @TOP_OBJDIR@/src/config/Makefile.config
+include @TOP_OBJDIR@/src/config/Makefile.lwp
+include @TOP_OBJDIR@/src/config/Makefile.lwptool
+
+LT_authent_objs = uinit.lo ubikclient.lo uerrors.lo ubik_int.cs.lo \
+		  ubik_int.xdr.lo
+
+LT_objs =   $(LT_authent_objs) \
+	    disk.lo remote.lo beacon.lo recovery.lo ubik.lo vote.lo lock.lo \
+	    phys.lo ubik_int.ss.lo ubikcmd.lo
+
+LT_deps =   $(top_builddir)/src/auth/liboafs_auth.la \
+	    $(top_builddir)/src/opr/liboafs_opr.la \
+	    $(top_builddir)/src/comerr/liboafs_comerr.la \
+	    $(top_builddir)/src/lwp/liboafs_lwpcompat.la \
+	    $(top_builddir)/src/rx/liboafs_rx.la \
+	    $(top_builddir)/src/util/liboafs_util.la
+
+INCLS=${TOP_INCDIR}/lwp.h ${TOP_INCDIR}/lock.h \
+	${TOP_INCDIR}/rx/rx.h ${TOP_INCDIR}/rx/xdr.h \
+	${TOP_INCDIR}/lock.h ubik.h ubik_int.h
+
+LIBS=${TOP_LIBDIR}/librx.a ${TOP_LIBDIR}/liblwp.a ${TOP_LIBDIR}/libauth.a \
+	${TOP_LIBDIR}/libafscom_err.a ${TOP_LIBDIR}/libcmd.a \
+	${TOP_LIBDIR}/libsys.a ${TOP_LIBDIR}/libauth.a \
+	${TOP_LIBDIR}/libafsutil.a ${TOP_LIBDIR}/libopr.a \
+	${XLIBS}
+
+all: depinstall ${TOP_LIBDIR}/libubik.a udebug utst_server utst_client \
+     liboafs_ubik.la libauthent_ubik.la
+
+generated: \
+	utst_int.cs.c utst_int.ss.c utst_int.xdr.c utst_int.h \
+	Kubik_int.cs.c Kubik_int.xdr.c Kubik_int.h \
+	ubik_int.cs.c ubik_int.ss.c ubik_int.xdr.c ubik_int.h \
+	uerrors.c ubik.h
+
+depinstall: \
+	ubik_int.cs.c ubik_int.xdr.c \
+	${TOP_INCDIR}/ubik.h \
+	${TOP_INCDIR}/ubik_int.h
+
+${TOP_LIBDIR}/libubik.a: libubik.a
+	${INSTALL_DATA} $? $@
+
+${TOP_INCDIR}/ubik.h: ubik.h
+	${INSTALL_DATA} $? $@
+
+${TOP_INCDIR}/ubik_int.h: ubik_int.h
+	${INSTALL_DATA} $? $@
+
+utst_server: utst_server.o utst_int.ss.o utst_int.xdr.o libubik.a 
+	$(AFS_LDRULE) utst_server.o utst_int.ss.o utst_int.xdr.o \
+		libubik.a $(LIBS) $(LIB_roken)
+
+utst_client: utst_client.o utst_int.cs.o utst_int.xdr.o libubik.a 
+	$(AFS_LDRULE) utst_client.o utst_int.cs.o utst_int.xdr.o \
+		libubik.a $(LIBS) $(LIB_roken)
+
+udebug: udebug.o libubik.a 
+	$(AFS_LDRULE) udebug.o libubik.a $(LIBS) $(LIB_roken)
+
+ubik_int.cs.c: ubik_int.xg
+	${RXGEN} -A -x -C -o $@ ${srcdir}/ubik_int.xg
+
+ubik_int.ss.c: ubik_int.xg
+	${RXGEN} -A -x -S -o $@ ${srcdir}/ubik_int.xg
+
+ubik_int.xdr.c: ubik_int.xg
+	${RXGEN} -A -x -c -o $@ ${srcdir}/ubik_int.xg
+
+ubik_int.h: ubik_int.xg
+	${RXGEN} -A -x -h -o $@ ${srcdir}/ubik_int.xg
+
+ubik_int.cs.c: ubik_int.h
+ubik_int.ss.c: ubik_int.h
+ubik_int.xdr.c: ubik_int.h
+
+Kubik_int.cs.c: ubik_int.xg Kubik_int.h
+	${RXGEN} -A -x -k -C -o Kubik_int.cs.c ${srcdir}/ubik_int.xg
+
+Kubik_int.xdr.c: ubik_int.xg
+	${RXGEN} -A -x -k -c -o Kubik_int.xdr.c ${srcdir}/ubik_int.xg
+
+Kubik_int.h: ubik_int.xg
+	${RXGEN} -A -x -k -h -o Kubik_int.h ${srcdir}/ubik_int.xg
+
+utst_int.ss.o: utst_int.ss.c utst_int.xdr.c
+utst_int.cs.o: utst_int.cs.c utst_int.xdr.c
+utst_int.xdr.o: utst_int.xdr.c utst_int.h
+
+utst_int.cs.c: utst_int.xg
+	${RXGEN} -A -C -u -o $@ ${srcdir}/utst_int.xg
+
+utst_int.ss.c: utst_int.xg
+	${RXGEN} -A -S -o $@ ${srcdir}/utst_int.xg
+
+utst_int.xdr.c: utst_int.xg
+	${RXGEN} -A -c -o $@ ${srcdir}/utst_int.xg
+
+utst_int.h: utst_int.xg
+	${RXGEN} -A -h -u -o $@ ${srcdir}/utst_int.xg
+
+utst_int.cs.c: utst_int.h
+utst_int.ss.c: utst_int.h
+utst_int.xdr.c: utst_int.h
+
+utst_server.o: utst_server.c ${INCLS} utst_int.h AFS_component_version_number.c
+utst_client.o: utst_client.c ${INCLS} utst_int.h AFS_component_version_number.c
+
+udebug.o: udebug.c ${INCLS} AFS_component_version_number.c
+uerrors.o: uerrors.c
+
+uerrors.c ubik.h: uerrors.et ubik.p.h
+	$(RM) -f ubik.h uerrors.c
+	${COMPILE_ET} -p ${srcdir} uerrors -h ubik
+ubik.h: uerrors.c
+
+libubik.a: ${LT_objs}
+	$(LT_LDLIB_lwp) $(LT_objs)
+
+$(LT_objs): $(INCLS)
+
+utst_int.ss.o: utst_int.ss.c ${INCLS} utst_int.h
+utst_int.cs.o: utst_int.cs.c ${INCLS} utst_int.h
+utst_int.xdr.o: utst_int.xdr.c ${INCLS} utst_int.h 
+
+liboafs_ubik.la: liboafs_ubik.la.sym $(LT_objs) $(LT_deps)
+	$(LT_LDLIB_shlib) $(LT_objs) $(LT_deps) $(LT_libs)
+
+libauthent_ubik.la: $(LT_authent_objs)
+	$(LT_LDLIB_pic) $(LT_authent_objs)
+
+#
+# Installation targets
+#
+test: all
+
+install: libubik.a ubik.h ubik_int.h udebug
+	${INSTALL} -d ${DESTDIR}${libdir}
+	${INSTALL} -d ${DESTDIR}${includedir}
+	${INSTALL} -d ${DESTDIR}${bindir}
+	${INSTALL} -d ${DESTDIR}${afssrvbindir}
+	${INSTALL_DATA} libubik.a ${DESTDIR}${libdir}/libubik.a
+	${INSTALL_DATA} ubik.h ${DESTDIR}${includedir}/ubik.h
+	${INSTALL_DATA} ubik_int.h ${DESTDIR}${includedir}/ubik_int.h
+	${INSTALL_PROGRAM} udebug ${DESTDIR}${bindir}/udebug
+	${INSTALL_PROGRAM} udebug ${DESTDIR}${afssrvbindir}/udebug
+
+dest: libubik.a ubik.h ubik_int.h udebug
+	${INSTALL} -d ${DEST}/lib
+	${INSTALL} -d ${DEST}/include
+	${INSTALL} -d ${DEST}/root.server/usr/afs/bin
+	${INSTALL_DATA} libubik.a ${DEST}/lib/libubik.a
+	${INSTALL_DATA} ubik.h ${DEST}/include/ubik.h
+	${INSTALL_DATA} ubik_int.h ${DEST}/include/ubik_int.h
+	${INSTALL_PROGRAM} udebug ${DEST}/bin/udebug
+	${INSTALL_PROGRAM} udebug ${DEST}/root.server/usr/afs/bin/udebug
+
+#
+# Misc. targets
+#
+clean:
+	$(LT_CLEAN)
+	$(RM) -f *.o utst_server utst_client udebug *.a *.cs.c *.ss.c *.xdr.c
+	$(RM) -f utst_int.h ubik_int.h uerrors.c ubik.h core AFS_component_version_number.c Kubik_int.h
+
+include ../config/Makefile.version

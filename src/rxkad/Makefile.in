@@ -1,0 +1,143 @@
+# Copyright 2000, International Business Machines Corporation and others.
+# All Rights Reserved.
+# 
+# This software has been released under the terms of the IBM Public
+# License.  For details, see the LICENSE file in the top-level source
+# directory or online at http://www.openafs.org/dl/license10.html
+#
+# Portions Copyright (c) 2003 Apple Computer, Inc.
+
+srcdir=@srcdir@
+include @TOP_OBJDIR@/src/config/Makefile.config
+include @TOP_OBJDIR@/src/config/Makefile.lwp
+include @TOP_OBJDIR@/src/config/Makefile.lwptool
+
+INCLS=${TOP_INCDIR}/rx/rx.h ${TOP_INCDIR}/rx/xdr.h \
+	${TOP_INCDIR}/rx/fcrypt.h \
+	${TOP_INCDIR}/rx/rxkad.h \
+	${TOP_INCDIR}/rx/rxkad_prototypes.h \
+	rxkad_convert.h fcrypt.h v5gen.h
+
+LT_objs=rxkad_client.lo rxkad_server.lo rxkad_common.lo rxkad_errs.lo \
+        fcrypt.lo crypt_conn.lo ticket.lo ticket5.lo crc.lo
+
+LT_deps=$(top_builddir)/src/comerr/liboafs_comerr.la \
+	$(top_builddir)/src/rx/liboafs_rx.la \
+	$(top_builddir)/src/opr/liboafs_opr.la \
+	$(top_builddir)/src/crypto/rfc3961/liboafs_rfc3961.la
+
+LT_libs=$(LDFLAGS_hcrypto) $(LIB_hcrypto)
+
+fc_test_OBJS=fc_test.o
+
+fc_test_LIBS=\
+	${TOP_LIBDIR}/librxkad.a \
+	${TOP_LIBDIR}/libafshcrypto_lwp.a \
+	${TOP_LIBDIR}/librx.a \
+	${TOP_LIBDIR}/liblwp.a \
+	${TOP_LIBDIR}/libafsutil.a
+
+all: ${TOP_LIBDIR}/librxkad.a liboafs_rxkad.la libafsrpc_rxkad.la depinstall
+
+test: fc_test
+
+generated: \
+	rxkad_errs.c rxkad.h
+
+depinstall: \
+	${TOP_INCDIR}/rx/rxkad.h \
+	${TOP_INCDIR}/rx/rxkad_prototypes.h \
+	${TOP_INCDIR}/rx/rxkad_convert.h \
+	${TOP_INCDIR}/rx/fcrypt.h \
+	${TOP_INCDIR}/rx/rxkad_stats.h
+
+${TOP_LIBDIR}/librxkad.a: librxkad.a
+	${INSTALL_DATA} $? $@
+
+${TOP_INCDIR}/rx/fcrypt.h: fcrypt.h
+	${INSTALL_DATA} $? $@
+
+${TOP_INCDIR}/rx/rxkad.h: rxkad.h
+	${INSTALL_DATA} $? $@
+
+${TOP_INCDIR}/rx/rxkad_prototypes.h: rxkad_prototypes.h
+	${INSTALL_DATA} $? $@
+
+${TOP_INCDIR}/rx/rxkad_stats.h: stats.h
+	${INSTALL_DATA} $? $@
+
+${TOP_INCDIR}/rx/rxkad_convert.h: rxkad_convert.h
+	${INSTALL_DATA} $? $@
+
+#
+# Build targets
+#
+librxkad.a: $(LT_objs)
+	$(LT_LDLIB_lwp) $(LT_objs)
+
+liboafs_rxkad.la: liboafs_rxkad.la.sym $(LT_objs) $(LT_deps)
+	$(LT_LDLIB_shlib) $(LT_objs) $(LT_deps) $(LT_libs)
+
+libafsrpc_rxkad.la: $(LT_objs)
+	$(LT_LDLIB_pic) $(LT_objs)
+
+CFLAGS_ticket5.lo = @CFLAGS_NOERROR@
+
+crc.lo: crc.c ${INCLS}
+crypt_conn.lo: crypt_conn.c fcrypt.h private_data.h ${INCLS}
+fcrypt.lo: fcrypt.c fcrypt.h sboxes.h rxkad.h rxkad_prototypes.h
+rxkad_client.lo: fcrypt.h private_data.h rxkad_client.c ${INCLS}
+rxkad_server.lo: rxkad_server.c fcrypt.h private_data.h  ${INCLS}
+rxkad_common.lo: fcrypt.h private_data.h rxkad_common.c ${INCLS}
+rxkad_errs.lo: rxkad_errs.c
+ticket.lo: ticket.c lifetimes.h ${INCLS}
+ticket5.lo: ticket5.c v5gen.c v5der.c v5gen-rewrite.h ${INCLS}
+
+rxkad_errs.c rxkad.h: rxkad_errs.et rxkad.p.h
+	$(RM) -f rxkad.h rxkad_errs.c
+	${COMPILE_ET} -p ${srcdir} rxkad_errs -h rxkad
+rxkad.h: rxkad_errs.c
+
+tcrypt.o: tcrypt.c AFS_component_version_number.o
+
+tcrypt: tcrypt.o librxkad.a 
+	$(AFS_LDRULE) tcrypt.o librxkad.a
+
+fc_test: ${fc_test_OBJS} ${fc_test_LIBS}
+	$(AFS_LDRULE) ${fc_test_OBJS} ${fc_test_LIBS} ${XLIBS}
+
+fc_test.o: ${INCLS}
+
+#
+# Install targets
+#
+install: librxkad.a fcrypt.h rxkad.h rxkad_prototypes.h
+	${INSTALL} -d ${DESTDIR}${libdir}
+	${INSTALL} -d ${DESTDIR}${includedir}/rx
+	${INSTALL_DATA} librxkad.a ${DESTDIR}${libdir}/librxkad.a
+	${INSTALL_DATA} ${srcdir}/fcrypt.h ${DESTDIR}${includedir}/rx/fcrypt.h
+	${INSTALL_DATA} rxkad.h ${DESTDIR}${includedir}/rx/rxkad.h
+	${INSTALL_DATA} ${srcdir}/rxkad_prototypes.h \
+		${DESTDIR}${includedir}/rx/rxkad_prototypes.h
+
+dest: librxkad.a fcrypt.h rxkad.h rxkad_prototypes.h
+	${INSTALL} -d ${DEST}/lib
+	${INSTALL} -d ${DEST}/include/rx
+	${INSTALL_DATA} librxkad.a ${DEST}/lib/librxkad.a
+	${INSTALL_DATA} ${srcdir}/fcrypt.h ${DEST}/include/rx/fcrypt.h
+	${INSTALL_DATA} rxkad.h ${DEST}/include/rx/rxkad.h
+	${INSTALL_DATA} ${srcdir}/rxkad_prototypes.h \
+		${DEST}/include/rx/rxkad_prototypes.h
+
+#
+# Misc. targets
+#
+clean: 
+	$(LT_CLEAN)
+	$(RM) -f *.o *.a tcrypt core rxkad_errs.c rxkad.h \
+		AFS_component_version_number.c fc_test
+
+test:
+	cd test; $(MAKE)
+
+include ../config/Makefile.version

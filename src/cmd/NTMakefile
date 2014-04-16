@@ -1,0 +1,62 @@
+# Copyright 2000, International Business Machines Corporation and others.
+# All Rights Reserved.
+# 
+# This software has been released under the terms of the IBM Public
+# License.  For details, see the LICENSE file in the top-level source
+# directory or online at http://www.openafs.org/dl/license10.html
+
+RELDIR=cmd
+!INCLUDE ..\config\NTMakefile.$(SYS_NAME)
+!INCLUDE ..\config\NTMakefile.version
+
+# install include files 
+INCFILEDIR = $(DESTDIR)\include\afs 
+
+INCFILES =\
+	$(INCFILEDIR)\cmd.h
+
+HEIMDAL = ..\external\heimdal\krb5
+
+
+# build afscmd.lib
+LIBFILE = $(DESTDIR)\lib\afs\afscmd.lib
+
+LIBOBJS =\
+	$(OUT)\cmd_errors.obj \
+	$(OUT)\cmd.obj \
+	$(OUT)\AFS_component_version_number.obj
+
+HEIMOBJS =\
+        $(OUT)\config_file.obj \
+	$(OUT)\expand_path.obj
+
+$(LIBOBJS): $$(@B).c
+    $(C2OBJ) $**
+
+$(OUT)\expand_path.obj: $(HEIMDAL)\$$(@B).c
+	$(C2OBJ) -I$(HEIMDAL) -DEXPAND_PATH_HEADER $**
+
+$(OUT)\config_file.obj: $(HEIMDAL)\$$(@B).c
+        $(C2OBJ) -I$(HEIMDAL) -DKRB5_USE_PATH_TOKENS $**
+
+$(LIBFILE): $(LIBOBJS) $(HEIMOBJS)
+	$(LIBARCH) 
+
+$(INCFILES):$$(@F)
+	 $(COPY)  $** $(INCFILEDIR)\.
+
+cmd_errors.c cmd.h: cmd_errors.et cmd.p.h
+	$(DEL) cmd_errors.c cmd.h
+	$(COMPILE_ET) cmd_errors.et -h cmd
+
+install: cmd.h $(LIBFILE) $(INCFILES)
+
+clean::
+	$(DEL) cmd_errors.c cmd.h $(INCFILES)
+	$(DEL) $(LIBFILE)
+	$(DEL) *.PDB
+
+test tests:
+
+mkdir:
+	

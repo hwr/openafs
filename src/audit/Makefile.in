@@ -1,0 +1,72 @@
+# Copyright 2000, International Business Machines Corporation and others.
+# All Rights Reserved.
+# 
+# This software has been released under the terms of the IBM Public
+# License.  For details, see the LICENSE file in the top-level source
+# directory or online at http://www.openafs.org/dl/license10.html
+
+# # Auditing is currently only supported for AIX32 machines.  It is
+# # integrated with the AIX auditing facility.  The objects, events, 
+# # and config files are AIX specific.  The Audit file is not but is
+# # included in the rs_aix32 case since other platforms are not
+# # supported (if not supported, don't show it).
+# ######################################################################
+
+srcdir=@srcdir@
+include @TOP_OBJDIR@/src/config/Makefile.config
+include @TOP_OBJDIR@/src/config/Makefile.lwp
+include @TOP_OBJDIR@/src/config/Makefile.lwptool
+
+LT_objs=audit.lo audit-file.lo audit-sysvmq.lo
+LT_deps = $(top_builddir)/src/rxkad/liboafs_rxkad.la \
+	  $(top_builddir)/src/util/liboafs_util.la
+
+all: liboafs_audit.la libauthent_audit.la ${TOP_LIBDIR}/libaudit.a ${TOP_INCDIR}/afs/audit.h
+
+${TOP_LIBDIR}/libaudit.a: libaudit.a
+	${INSTALL_DATA} $? $@
+
+${TOP_INCDIR}/afs/audit.h: audit.h
+	${INSTALL_DATA} $? $@
+
+libaudit.a: $(LT_objs)
+	$(LT_LDLIB_lwp) $(LT_objs)
+
+liboafs_audit.la: liboafs_audit.la.sym $(LT_objs) $(LT_deps)
+	$(LT_LDLIB_shlib) $(LT_objs) $(LT_deps) $(LT_libs)
+
+libauthent_audit.la: $(LT_objs)
+	$(LT_LDLIB_pic) $(LT_objs)
+
+audit.lo: audit.c audit.h audit-api.h
+audit-file.lo: audit-file.c audit.h audit-api.h
+audit-sysvmq.lo: audit-sysvmq.c audit.h audit-api.h
+
+# XXX-INST: where to install the AIX audit files?
+install: audit.h libaudit.a
+	${INSTALL} -d ${DESTDIR}${libdir}/afs
+	${INSTALL} -d ${DESTDIR}${includedir}/afs
+	${INSTALL_DATA} libaudit.a ${DESTDIR}${libdir}/afs/libaudit.a
+	${INSTALL_DATA} ${srcdir}/audit.h ${DESTDIR}${includedir}/afs/audit.h
+
+dest: libaudit.a audit.h
+	${INSTALL} -d ${DEST}/lib/afs
+	${INSTALL} -d ${DEST}/include/afs
+	${INSTALL_DATA} libaudit.a ${DEST}/lib/afs/libaudit.a
+	${INSTALL_DATA} ${srcdir}/audit.h ${DEST}/include/afs/audit.h
+	case ${SYS_NAME} in \
+	rs_aix*) \
+	   ${INSTALL} -d ${DEST}/root.server/usr/afs/local ; \
+	   ${INSTALL} -d ${DEST}/root.server/usr/afs/local/audit ; \
+	   ${INSTALL_DATA} ${srcdir}/Audit              ${DEST}/root.server/usr/afs/local/Audit ;  \
+	   ${INSTALL_DATA} ${srcdir}/objects.aix.sample ${DEST}/root.server/usr/afs/local/audit/objects.sample ;  \
+	   ${INSTALL_DATA} ${srcdir}/events.aix.sample  ${DEST}/root.server/usr/afs/local/audit/events.sample  ;  \
+	   ${INSTALL_DATA} ${srcdir}/config.aix.sample  ${DEST}/root.server/usr/afs/local/audit/config.sample  ;; \
+	*) ;; \
+	esac ;
+
+clean:
+	$(LT_CLEAN)
+	$(RM) -f *.a *.o core AFS_component_version_number.c
+
+include ../config/Makefile.version

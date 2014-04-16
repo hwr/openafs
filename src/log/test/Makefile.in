@@ -1,0 +1,36 @@
+# Copyright 2000, International Business Machines Corporation and others.
+# All Rights Reserved.
+# 
+# This software has been released under the terms of the IBM Public
+# License.  For details, see the LICENSE file in the top-level source
+# directory or online at http://www.openafs.org/dl/license10.html
+
+srcdir=@srcdir@
+include @TOP_OBJDIR@/src/config/Makefile.config
+include @TOP_OBJDIR@/src/config/Makefile.lwp
+
+
+LDIRS=-L${TOP_LIBDIR} -L${DESTDIR}/lib/afs -L..
+LIBS= -lauth -lrxkad -ldes -lsys -lrx -llwp -lcmd -lafsutil ${XLIBS}
+
+all: testlog gettoktest
+
+install:  
+
+#
+# Build targets
+#
+testlog: testlog.o 
+	$(AFS_LDRULE) testlog.o ${LDIRS} ${LIBS}
+
+gettoktest: gettoktest.o 
+	$(AFS_LDRULE) gettoktest.o ${LDIRS} ${LIBS}
+
+#
+# Misc. targets
+# 
+clean:	
+	$(RM) -f *.o testlog gettoktest core
+
+dest:  
+
