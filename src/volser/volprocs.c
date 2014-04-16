@@ -2078,7 +2078,7 @@ FillVolInfo(Volume * vp, volint_info_handle_t * handle)
 	handle->volinfo_ptr.base->needsSalvaged = hdr->needsSalvaged;
 #endif
 	handle->volinfo_ptr.base->destroyMe = hdr->destroyMe;
-	handle->volinfo_ptr.base->spare0 = hdr->minquota;
+	handle->volinfo_ptr.base->osdPolicy = hdr->osdPolicy;
 	handle->volinfo_ptr.base->spare1 =
 	    (long)hdr->weekUse[0] +
 	    (long)hdr->weekUse[1] +
@@ -2089,7 +2089,7 @@ FillVolInfo(Volume * vp, volint_info_handle_t * handle)
 	    (long)hdr->weekUse[6];
 	handle->volinfo_ptr.base->flags = 0;
 	handle->volinfo_ptr.base->spare2 = hdr->volUpdateCounter;
-	handle->volinfo_ptr.base->spare3 = 0;
+	handle->volinfo_ptr.base->filequota = hdr->maxfiles;
 	break;
 
 

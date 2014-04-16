@@ -34,11 +34,6 @@
 #include "volser.h"
 #include "physio.h"
 #include "volser_internal.h"
-#ifdef AFS_RXOSD_SUPPORT
-#include "rxosd.h"
-#include "vol_osd.h"
-#include "../vol/vol_osd_prototypes.h"
-#endif
 
 #define NEEDED 	1
 #define PARENT 	2
@@ -406,10 +401,6 @@ afs_int32 copyVnodes(struct Msg *m, Volume *vol, Volume *newvol,
 	            IH_INIT(newh, newvol->device, V_parentId(newvol), newino);
 	       	    code = namei_replace_file_by_hardlink(newh, h);
 		    VNDISK_SET_INO(vnode, newino);
-#ifdef AFS_RXOSD_SUPPORT
-       	        } else {
-		    code = osd_split_objects(vol, newvol, vnode, e->vN);
-#endif /*  AFS_RXOSD_SUPPORT */
 	        }
 	        if (code)
 		    goto Bad_Copy;
@@ -584,9 +575,6 @@ createMountpoint(Volume *vol, Volume *newvol, struct VnodeDiskObject *parent,
     IH_RELEASE(h);
     VNDISK_SET_INO(&vnode, newino);
     VNDISK_SET_LEN(&vnode, size);
-#ifndef AFS_RXOSD_SUPPORT
-    vnode.vnodeMagic = SMALLVNODEMAGIC;
-#endif
     if (FDH_PWRITE(fdP, &vnode, vcp->diskSize, offset) != vcp->diskSize) {
 	Log("split volume: couldn't write vnode for mountpoint %" AFS_VOLID_FMT ".%u.%u\n",
 	    afs_printable_VolumeId_lu(V_id(vol)), newvN, vnode.uniquifier);
@@ -675,10 +663,6 @@ deleteVnodes(Volume *vol, afs_int32 class,
 		IHandle_t *h;
 	        IH_INIT(h, vol->device, V_parentId(vol), ino);
 		    IH_DEC(h, ino, V_parentId(vol));
-#ifdef AFS_RXOSD_SUPPORT
-       	    } else {
-		code = osdRemove(vol, vnode, e->vN);
-#endif /*  AFS_RXOSD_SUPPORT */
 	    }
 	    memset(vnode, 0, vcp->diskSize);
 	    vnode->type = vNull;
@@ -834,9 +818,6 @@ split_volume(struct rx_call *call, Volume *vol, Volume *newvol,
     }
 
     V_diskused(newvol) = blocks;
-#ifdef AFS_RXOSD_SUPPORT
-    V_osdFlag(newvol) = V_osdFlag(vol);
-#endif
     V_filecount(newvol) = filesNeeded + dirsNeeded;
     V_destroyMe(newvol) = 0;
     V_maxquota(newvol) = V_maxquota(vol);

@@ -415,10 +415,10 @@ void init_volintInfo(struct volintInfo *vinfo) {
     vinfo->creationDate = -1;
     vinfo->updateDate = -1;
     vinfo->flags = -1;
-    vinfo->spare0 = -1;
+    vinfo->osdPolicy = -1;
     vinfo->spare1 = -1;
     vinfo->spare2 = -1;
-    vinfo->spare3 = -1;
+    vinfo->filequota = -1;
 }
 
 static struct rx_securityClass *uvclass = 0;
