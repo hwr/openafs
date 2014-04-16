@@ -6,6 +6,7 @@ LIBMINOR=1
 srcdir=@srcdir@
 include @TOP_OBJDIR@/src/config/Makefile.config
 include @TOP_OBJDIR@/src/config/Makefile.shared
+include @TOP_OBJDIR@/src/config/Makefile.libtool
 
 
 HEADERS = ${TOP_INCDIR}/base64.h \
@@ -18,7 +19,10 @@ SHLIBOBJ = librokenafs.${SHLIB_SUFFIX}.${LIBMAJOR}.${LIBMINOR}
 
 all: $(ROKEN_HEADERS) $(HEADERS) \
 	$(TOP_LIBDIR)/$(SHLIBOBJ) \
-	$(TOP_LIBDIR)/librokenafs.a
+	$(TOP_LIBDIR)/librokenafs.a liboafs_roken.la
+
+liboafs_roken.la: ${LT_objs} ${LT_deps}
+	$(LT_LDLIB_shlib) $(LT_objs) $(LT_deps) $(LT_libs)
 
 buildtools: $(ROKEN_HEADERS) $(HEADERS) $(TOP_LIBDIR)/librokenafs.a
 
@@ -49,6 +53,10 @@ $(SHLIBOBJ): $(OBJECTS) librokenafs.map
 	$(TOP_OBJDIR)/src/config/shlib-build -i -d $(srcdir) -l librokenafs \
 		-M $(LIBMAJOR) -m $(LIBMINOR) -- \
 		$(OBJECTS) $(MT_LIBS)
+
+LT_objs = ${ROKEN_LIBOBJS}
+LT_deps=
+LT_libs=
 
 $(TOP_LIBDIR)/librokenafs.a: librokenafs.a
 	$(INSTALL_DATA) $? $@
