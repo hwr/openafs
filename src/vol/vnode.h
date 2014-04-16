@@ -77,6 +77,11 @@ extern struct VnodeClassInfo VnodeClassInfo[nVNODECLASSES];
 #define bitNumberToVnodeNumber(b,class) ((VnodeId)(((b)<<VNODECLASSWIDTH)+(class)+1))
 #define vnodeIsDirectory(vnodeNumber) (vnodeIdToClass(vnodeNumber) == vLarge)
 
+struct OsdMetadata {
+    unsigned int    osdOnline:1;
+    unsigned int    osdIndex:31;
+};
+
 typedef struct VnodeDiskObject {
     unsigned int type:3;	/* Vnode is file, directory, symbolic link
 				 * or not allocated */
@@ -97,8 +102,15 @@ typedef struct VnodeDiskObject {
     UserId author;		/* Userid of the last user storing the file */
     UserId owner;		/* Userid of the user who created the file */
     VnodeId parent;		/* Parent directory vnode */
-    bit32 vnodeMagic;		/* Magic number--mainly for file server
+    union {
+	struct OsdMetadata o;
+	bit32 vnodemagic;	/* Magic number--mainly for file server
 				 * paranoia checks */
+    } u;
+#   define 	osdMetadataIndex	u.o.osdIndex
+#   define 	osdFileOnline 		u.o.osdOnline
+#   define 	vnodeMagic 		u.vnodemagic
+#   define 	osdPolicyIndex 		osdMetadataIndex
 #   define	  SMALLVNODEMAGIC	0xda8c041F
 #   define	  LARGEVNODEMAGIC	0xad8765fe
     /* Vnode magic can be removed, someday, if we run need the room.  Simply
@@ -143,6 +155,9 @@ typedef enum {
     VN_STATE_READ               = 8,    /**< a non-zero number of threads are executing
 					 *   code external to the vnode package which
 					 *   requires shared access */
+    VN_STATE_SHARED		= 9,	/**< something external to the vnode package
+					 *   has write access to this vnode while
+					 *   other threads may get read access */
     VN_STATE_ERROR              = 10,   /**< vnode hard error state */
     VN_STATE_COUNT
 } VnState;
@@ -272,9 +287,9 @@ extern void VPutVnode_r(Error * ec, Vnode * vnp);
 extern int VVnodeWriteToRead(Error * ec, Vnode * vnp);
 extern int VVnodeWriteToRead_r(Error * ec, Vnode * vnp);
 extern Vnode *VAllocVnode(Error * ec, struct Volume *vp, VnodeType type,
-	VnodeId in_vnode, Unique in_unique);
+       VnodeId in_vnode, Unique in_unique);
 extern Vnode *VAllocVnode_r(Error * ec, struct Volume *vp, VnodeType type,
-	VnodeId in_vnode, Unique in_unique);
+       VnodeId in_vnode, Unique in_unique);
 
 /*extern VFreeVnode();*/
 extern Vnode *VGetFreeVnode_r(struct VnodeClassInfo *vcp, struct Volume *vp,

@@ -633,14 +633,14 @@ else
 			AFS_SYSNAME="x86_darwin_120"
 			OSXSDK="macosx10.8"
 			;;
-                x86_64-apple-darwin13.*)
-                        AFS_SYSNAME="x86_darwin_130"
-                        OSXSDK="macosx10.9"
-                        ;;
-                i?86-apple-darwin13.*)
-                        AFS_SYSNAME="x86_darwin_130"
-                        OSXSDK="macosx10.9"
-                        ;;
+		x86_64-apple-darwin13.*)
+			AFS_SYSNAME="x86_darwin_130"
+			OSXSDK="macosx10.9"
+			;;
+		i?86-apple-darwin13.*)
+			AFS_SYSNAME="x86_darwin_130"
+			OSXSDK="macosx10.9"
+			;;
 		sparc-sun-solaris2.8)
 			AFS_SYSNAME="sun4x_58"
 			;;
@@ -1298,6 +1298,11 @@ if test "$enable_bitmap_later" = "yes"; then
 	AC_DEFINE(BITMAP_LATER, 1, [define if you want to salvager to check bitmasks later])
 fi
 
+LIBAFSOSDMINOR=`grep LIBAFSOSD_VERSION ${srcdir}/src/rxosd/afsosd.h | awk '{print $[]3}'`
+echo LIBAFSOSDMINOR = $LIBAFSOSDMINOR
+
+AC_SUBST(LIBAFSOSDMINOR)
+
 if test "$enable_unix_sockets" = "yes"; then
 	AC_DEFINE(USE_UNIX_SOCKETS, 1, [define if you want to use UNIX sockets for fssync.])
 	USE_UNIX_SOCKETS="yes"
@@ -1574,6 +1579,7 @@ AC_CHECK_FUNCS([ \
 	inet_pton \
 	putenv \
 	readv \
+	writev \
 	setenv \
 	strdup \
 	strftime \

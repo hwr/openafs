@@ -53,12 +53,12 @@
 #endif /* KERNEL */
 
 #include <opr/queue.h>
-
 #include "rx_clock.h"
 #include "rx_event.h"
 #include "rx_misc.h"
 #include "rx_null.h"
 #include "rx_multi.h"
+#include "rx_opaque.h"
 
 /* These items are part of the new RX API. They're living in this section
  * for now, to keep them separate from everything else... */
@@ -89,6 +89,7 @@ extern u_short rx_ServiceIdOf(struct rx_connection *);
 extern int rx_SecurityClassOf(struct rx_connection *);
 extern struct rx_service *rx_ServiceOf(struct rx_connection *);
 extern int rx_ConnError(struct rx_connection *);
+extern int rx_decryptRxosdCAP(afs_uint32, afs_uint32, void *, struct rx_opaque *, struct rx_opaque *);
 
 /* Call management */
 extern struct rx_connection *rx_ConnectionOf(struct rx_call *call);
@@ -461,6 +462,7 @@ struct rx_ackPacket {
  * respectively */
 #define RX_NETWORK_ERROR_ORIGIN_ICMP (0)
 
+
 /*
  * RX error codes.  RX uses error codes from -1 to -64 and -100.
  * Rxgen uses other error codes < -64 (see src/rxgen/rpc_errors.h);
@@ -547,6 +549,11 @@ typedef enum {
      RXS_CONFIG_FLAGS /* afs_uint32 set of bitwise flags */
 } rx_securityConfigVariables;
 
+typedef enum {
+    rx_securityDecrypt,
+    rx_securityEncrypt
+} rx_securityEncryptMode;
+
 /* For the RXS_CONFIG_FLAGS, the following bit values are defined */
 
 /* Disable the principal name contains dot check in rxkad */
@@ -597,7 +604,11 @@ struct rx_securityClass {
 				    rx_securityConfigVariables atype,
 				    void * avalue,
 				    void ** acurrentValue);
-	int (*op_Spare2) (void);
+	int (*op_EncryptDecrypt) (struct rx_connection *conn,
+				  void *derivationConstant,
+				  struct rx_opaque *in,
+				  struct rx_opaque *out,
+				  rx_securityEncryptMode encrypt);
 	int (*op_Spare3) (void);
     } *ops;
     void *privateData;

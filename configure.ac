@@ -150,6 +150,10 @@ AS_IF([test -f 'doc/xml/mobi-fixup.xsl.in'],
 AS_IF([test -f 'doc/doxygen/Doxyfile.in'],
     [DOXYFILE="doc/doxygen/Doxyfile"],
     [DOXYFILE=])
+AS_IF([test -f ${srcdir}/src/afsosd/Makefile.in],
+    [AFSOSD_MAKEFILE="src/afsosd/Makefile"; WITH_OBJECT_STORAGE="YES"],
+    [AFSOSD_MAKEFILE=; WITH_OBJECT_STORAGE="NO"])
+AC_SUBST(WITH_OBJECT_STORAGE)
 
 AC_OUTPUT([
     Makefile
@@ -260,6 +264,7 @@ AC_OUTPUT([
     src/rxkad/Makefile
     src/rxkad/test/Makefile
     src/rxosd/Makefile
+    ${AFSOSD_MAKEFILE}
     src/rxstat/Makefile
     src/scout/Makefile
     src/sgistuff/Makefile

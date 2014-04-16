@@ -12,6 +12,7 @@ include @TOP_OBJDIR@/src/config/Makefile.config
 
 ENABLE_KERNEL_MODULE=@ENABLE_KERNEL_MODULE@
 DOXYGEN=@DOXYGEN@
+WITH_OBJECT_STORAGE=@WITH_OBJECT_STORAGE@
 
 # To compile AFS from scratch in the src tree run "make".
 #   This recursively calls "make install ..." and does not depend on the
@@ -326,15 +327,12 @@ dvolser: project viced usd libafsrpc libafsauthent volser
 		echo Not building DAFS volser for ${SYS_NAME} ;;          \
 	esac
 
-rxosdsrc: rxgen
-	+${COMPILE_PART1} rxosd ${COMPILE_PART2A} source
-
 venus: cmd comerr volser ptserver libafscp libafsauthent
 	+${COMPILE_PART1} venus ${COMPILE_PART2}
 venustests: venus
 	+${COMPILE_PART1} venus/test ${COMPILE_PART2}
 
-afsd: cmd comerr sys kauth libafsauthent @CLIENT_UAFS_DEP@
+afsd: cmd comerr sys kauth vol libafsauthent @CLIENT_UAFS_DEP@
 	+${COMPILE_PART1} afsd ${COMPILE_PART2}
 
 gtx: cmd comerr auth kauth
@@ -486,7 +484,7 @@ libafs: config export rfc3961 hcrypto lwp_depinstall \
 	rxkad_depinstall fsint_depinstall \
 	libacl_depinstall afs_depinstall dir_depinstall \
 	rxstat_depinstall sys_depinstall auth_depinstall \
-	rxosdsrc
+	rxosd_generated
 	${CONFIGTOOL} src/libafs/MakefileProto.${MKAFS_OSTYPE} src/libafs/Makefile ${SYS_NAME}
 	+${COMPILE_PART1} libafs ${COMPILE_PART2}
 
@@ -509,7 +507,8 @@ libuafs_setup: config export
 libuafs: libuafs_setup vlserver_depinstall tvlserver_depinstall rx_depinstall fsint_depinstall \
 		auth_depinstall dir_depinstall libacl_depinstall rxkad_depinstall \
 		ubik_depinstall afs_depinstall kauth_depinstall ptserver_depinstall \
-		rxstat_depinstall lwp_depinstall sys_depinstall cmd hcrypto
+		rxstat_depinstall lwp_depinstall sys_depinstall cmd hcrypto \
+		rxosd_generated
 	+set -x; \
 	case ${SYS_NAME} in \
 	hp_ux102* | *_obsd* | *_nbsd*| hp_ux11i | hp_ux112* | ia64_hpux112*) \
@@ -533,7 +532,7 @@ bu_utils: cmd comerr usd
 usd: cmd comerr
 	+${COMPILE_PART1} usd ${COMPILE_PART2}
 
-bubasics: cmd comerr comerr rx
+bubasics: cmd comerr rx
 	+${COMPILE_PART1} bubasics ${COMPILE_PART2}
 
 butm: cmd comerr bubasics usd uss
@@ -643,6 +642,24 @@ jafs: libjafs
 
 jafsadm: libjafsadm
 
+# AFSOSD extensions in shared library libdafsosd.so
+
+rxosd_generated: vol fsint
+	+case ${SYS_NAME} in \
+	alpha_dux*|sgi_*|sun4x_*|sunx86_*|rs_aix*|*linux*|hp_ux11*|ia64_hpux*|*_darwin_1*|*nbsd*|*obsd*|*fbsd*) \
+	${COMPILE_PART1} rxosd ${COMPILE_GENERATED} ;; \
+	*) \
+		echo Not building shared library for rxosd for ${SYS_NAME} ;; \
+	esac
+
+afsosd: vol fsint libafsrpc libafsauthent
+	+case ${WITH_OBJECT_STORAGE} in \
+	YES) \
+		${COMPILE_PART1} afsosd ${COMPILE_PART2} ;; \
+	*) \
+		echo Not building afsosd ;; \
+	esac
+
 build_tools: config comerr rxgen
 	+${COMPILE_PART1} util ${COMPILE_PART2A} buildtools_clean
 
@@ -651,7 +668,7 @@ finale: project cmd comerr afsd butc tbutc tbudb @ENABLE_KERNEL_MODULE@ libuafs 
 	dviced dvolser libafscp\
 	venus venustests update xstat afsmonitor rxdebug libafsrpc rfc3961 hcrypto \
 	libafsauthent libadmin man-pages \
-	tools platform kopenafs authtools $(DIR_roken)
+	tools platform kopenafs authtools $(DIR_roken) afsosd
 	+${COMPILE_PART1} finale ${COMPILE_PART2}
 
 finale_nolibafs: project cmd comerr afsd butc tbutc tbudb libuafs audit kauth log \
@@ -659,7 +676,7 @@ finale_nolibafs: project cmd comerr afsd butc tbutc tbudb libuafs audit kauth lo
 	dviced dvolser libafscp\
 	venus venustests update xstat afsmonitor rxdebug libafsrpc rfc3961 hcrypto \
 	libafsauthent libadmin man-pages \
-	tools platform kopenafs authtools $(DIR_roken)
+	tools platform kopenafs authtools $(DIR_roken) afsosd
 	+${COMPILE_PART1} finale ${COMPILE_PART2}
 
 rpctestlib: util fsint rx opr libafsrpc libafsauthent
@@ -773,6 +790,12 @@ clean2:
 	-${COMPILE_PART1} libafs ${COMPILE_CLEAN}
 	-${COMPILE_PART1} libuafs ${COMPILE_CLEAN}
 	-${COMPILE_PART1} rxosd ${COMPILE_CLEAN}
+	+case ${WITH_OBJECT_STORAGE} in \
+	YES) \
+		${COMPILE_PART1} afsosd ${COMPILE_CLEAN} ;; \
+	*) \
+		echo Not building afsosd ;; \
+	esac
 	-${COMPILE_PART1} tests ${COMPILE_CLEAN}
 	-${COMPILE_PART1} crypto/hcrypto ${COMPILE_CLEAN}
 	-${COMPILE_PART1} roken ${COMPILE_CLEAN}
@@ -948,6 +971,9 @@ distclean: clean
 	tests/util/Makefile \
 	tests/volser/Makefile \
 	src/helper-splint.sh
+	if test -d src/afsosd ; then \
+	    rm -f src/afsosd/Makefile ; \
+	fi
 	if test -d doc/man-pages ; then \
 	    rm -f doc/man-pages/Makefile doc/man-pages/install-man ; \
 	fi

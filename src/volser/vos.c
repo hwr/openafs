@@ -217,7 +217,6 @@ GetServer(char *aname)
     afs_uint32 addr; /* in network byte order */
     afs_int32 code;
     char hostname[MAXHOSTCHARS];
-    int i;
 
     addr = GetServerNoresolve(aname);
     if (addr != 0) {
@@ -229,9 +228,9 @@ GetServer(char *aname)
 
     th = gethostbyname(aname);
     if (th != NULL) {
-	for (i=0; i < th->h_length; i++) {
-	    if (!rx_IsLoopbackAddr(ntohl(*(afs_uint32 *)th->h_addr_list[i]))) {
-		memcpy(&addr, th->h_addr_list[i], sizeof(addr));
+	if (th->h_length == 4) {
+	    if (!rx_IsLoopbackAddr(ntohl(*(afs_uint32 *)th->h_addr_list[0]))) {
+		memcpy(&addr, th->h_addr_list[0], sizeof(addr));
 		return addr;
 	    }
 	}
@@ -247,9 +246,9 @@ GetServer(char *aname)
 	if (code == 0) {
 	    th = gethostbyname(hostname);
 	    if (th != NULL) {
-		for (i=0; i < th->h_length; i++) {
-		    if (!rx_IsLoopbackAddr(ntohl(*(afs_uint32 *)th->h_addr_list[i]))) {
-			memcpy(&addr, th->h_addr_list[i], sizeof(addr));
+		if (th->h_length == 4) {
+		    if (!rx_IsLoopbackAddr(ntohl(*(afs_uint32 *)th->h_addr_list[0]))) {
+			memcpy(&addr, th->h_addr_list[0], sizeof(addr));
 			return addr;
 		    }
 		}
@@ -1142,16 +1141,16 @@ DisplayFormat2(long server, long partition, volintInfo *pntr)
 	    afs_printable_uint32_lu(pntr->flags));
     fprintf(STDOUT, "diskused\t%u\n", pntr->size);
     fprintf(STDOUT, "maxquota\t%u\n", pntr->maxquota);
-    fprintf(STDOUT, "minquota\t%lu\t(Optional)\n",
-	    afs_printable_uint32_lu(pntr->spare0));
+    fprintf(STDOUT, "osdPolicy\t%lu\t(Optional)\n",
+	    afs_printable_uint32_lu(pntr->osdPolicy));
     fprintf(STDOUT, "filecount\t%u\n", pntr->filecount);
     fprintf(STDOUT, "dayUse\t\t%u\n", pntr->dayUse);
     fprintf(STDOUT, "weekUse\t\t%lu\t(Optional)\n",
 	    afs_printable_uint32_lu(pntr->spare1));
     fprintf(STDOUT, "spare2\t\t%lu\t(Optional)\n",
 	    afs_printable_uint32_lu(pntr->spare2));
-    fprintf(STDOUT, "spare3\t\t%lu\t(Optional)\n",
-	    afs_printable_uint32_lu(pntr->spare3));
+    fprintf(STDOUT, "filequota\t\t%lu\t(Optional)\n",
+	    afs_printable_uint32_lu(pntr->filequota));
     return;
 }
 

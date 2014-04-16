@@ -72,12 +72,12 @@ static struct afs_inode_info {
 	1
     },
     {
-	{MOUNTMAGIC, MOUNTVERSION},
-	VI_MOUNTTABLE,
+	{OSDMETAMAGIC, OSDMETAVERSION},
+	VI_OSDMETADATA,
 	sizeof(struct versionStamp),
-	(Inode*)offsetof(struct VolumeHeader, volumeMountTable),
-	"mount table",
-	1
+	(Inode*)offsetof(struct VolumeHeader, OsdMetadata),
+	"OSD metadata",
+	2	/* Not obsolete, but will only be allocated when needed */
     },
     {
 	{LINKTABLEMAGIC, LINKTABLEVERSION},
