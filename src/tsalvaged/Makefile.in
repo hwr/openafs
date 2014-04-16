@@ -18,12 +18,13 @@ MODULE_CFLAGS = -DRXDEBUG -DFSSYNC_BUILD_CLIENT \
 		-DAFS_DEMAND_ATTACH_FS
 
 SCFLAGS=$(COMMON_CFLAGS) -I.. -DRXDEBUG -DFSSYNC_BUILD_CLIENT \
-	-DAFS_DEMAND_ATTACH_FS $(PTH_CFLAGS)
+	-DAFS_DEMAND_ATTACH_FS $(PTH_CFLAGS) -DBUILD_SALVAGER -DAFS_PTHREAD_ENV
 
 SCCRULE=$(RUN_CC) ${MT_CC} ${SCFLAGS} -c $? -o $@
 
 DIR=$(srcdir)/../dir
 VOL=$(srcdir)/../vol
+RXOSD=$(srcdir)/../rxosd
 
 SALVAGEDOBJS=salvaged.o vol-salvage.o physio.o
 SALVAGEROBJS=salvager.o s_vol-salvage.o s_physio.o
@@ -32,14 +33,14 @@ DIROBJS=buffer.o dir.o salvage.o
 SDIROBJS=s_buffer.o s_dir.o s_salvage.o
 
 VLIBOBJS=volume.o vnode.o vutil.o partition.o fssync-client.o \
-	 clone.o nuke.o devname.o listinodes.o ihandle.o \
+	 nuke.o devname.o listinodes.o ihandle.o \
 	 namei_ops.o salvsync-server.o salvsync-client.o daemon_com.o
 SVLIBOBJS=s_volume.o s_vnode.o s_vutil.o s_partition.o s_fssync-client.o \
-	 s_clone.o s_nuke.o s_devname.o s_listinodes.o s_ihandle.o \
+	 s_nuke.o s_devname.o s_listinodes.o s_ihandle.o \
 	 s_namei_ops.o s_salvsync-server.o s_salvsync-client.o s_daemon_com.o
 
-OBJECTS= ${SALVAGEDOBJS} ${VLIBOBJS} ${DIROBJS}
-SOBJECTS= ${SALVAGEROBJS} ${SVLIBOBJS} ${SDIROBJS}
+OBJECTS= ${SALVAGEDOBJS} ${VLIBOBJS} ${DIROBJS} libafsosd.o
+SOBJECTS= ${SALVAGEROBJS} ${SVLIBOBJS} ${SDIROBJS} s_libafsosd.o
 
 FSSDEBUG_OBJS = fssync-debug.o physio.o common.o ${VLIBOBJS} ${DIROBJS}
 
@@ -51,7 +52,8 @@ LIBS=   \
 	$(top_builddir)/src/util/liboafs_util.la \
 	$(top_builddir)/src/cmd/liboafs_cmd.la \
 	$(top_builddir)/src/lwp/liboafs_lwpcompat.la \
-	$(top_builddir)/src/opr/liboafs_opr.la
+	$(top_builddir)/src/opr/liboafs_opr.la \
+	$(top_builddir)/src/roken/liboafs_roken.la
 
 all: salvageserver dafssync-debug salvsync-debug dasalvager
 
@@ -71,8 +73,6 @@ s_partition.o: ${VOL}/partition.c
 	${SCCRULE}
 s_fssync-client.o: ${VOL}/fssync-client.c
 	${SCCRULE}
-s_clone.o: ${VOL}/clone.c
-	${SCCRULE}
 s_nuke.o: ${VOL}/nuke.c
 	${SCCRULE}
 s_devname.o: ${VOL}/devname.c
@@ -90,11 +90,13 @@ s_salvsync-client.o: ${VOL}/salvsync-client.c
 s_daemon_com.o: ${VOL}/daemon_com.c
 	${SCCRULE}
 s_buffer.o: ${DIR}/buffer.c
-	$(SCCRULE)
+	${SCCRULE}
 s_dir.o: ${DIR}/dir.c
-	$(SCCRULE)
+	${SCCRULE}
 s_salvage.o: ${DIR}/salvage.c
-	$(SCCRULE)
+	${SCCRULE}
+s_libafsosd.o: ${RXOSD}/libafsosd.c
+	${SCCRULE}
 
 salvaged.o: ${VOL}/salvaged.c
 	$(AFS_CCRULE) $(VOL)/salvaged.c
@@ -127,7 +129,7 @@ vutil.o: ${VOL}/vutil.c
 	$(AFS_CCRULE) $(VOL)/vutil.c
 
 partition.o: ${VOL}/partition.c
-	$(AFS_CCRULE) $(VOL)/partition.c
+	$(AFS_CCRULE) $(VOL)/partition.c -DBUILD_SALVAGER
 
 fssync-client.o: ${VOL}/fssync-client.c
 	$(AFS_CCRULE) $(VOL)/fssync-client.c
@@ -140,9 +142,6 @@ salvsync-client.o: ${VOL}/salvsync-client.c
 
 daemon_com.o: ${VOL}/daemon_com.c
 	$(AFS_CCRULE) $(VOL)/daemon_com.c
-
-clone.o: ${VOL}/clone.c
-	$(AFS_CCRULE) $(VOL)/clone.c
 
 nuke.o: ${VOL}/nuke.c
 	$(AFS_CCRULE) $(VOL)/nuke.c
@@ -162,12 +161,15 @@ ihandle.o: ${VOL}/ihandle.c
 namei_ops.o: ${VOL}/namei_ops.c
 	$(AFS_CCRULE) $(VOL)/namei_ops.c
 
+libafsosd.o: ${RXOSD}/libafsosd.c
+	$(AFS_CCRULE) $(RXOSD)/libafsosd.c -DBUILD_SALVAGER
+
 salvageserver: ${OBJECTS} ${LIBS}
-	$(LT_LDRULE_static) ${OBJECTS} ${LIBS} \
+	$(LT_LDRULE_static) ${OBJECTS} -ldl ${LIBS} \
 		$(LIB_hcrypto) $(LIB_roken) $(LIB_crypt) ${MT_LIBS} ${XLIBS}
 
 dasalvager: ${SOBJECTS} ${LIBS}
-	$(LT_LDRULE_static) ${SOBJECTS} ${LIBS} \
+	$(LT_LDRULE_static) ${SOBJECTS} -ldl ${LIBS} \
 		$(LIB_hcrypto) $(LIB_roken) $(LIB_crypt) ${MT_LIBS} ${XLIBS}
 
 dafssync-debug: ${FSSDEBUG_OBJS} ${LIBS}
