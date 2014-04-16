@@ -139,7 +139,7 @@ struct sysname_info {
 #ifdef AFS_DARWIN_ENV
 #define	BOP_MOVE	5	 /* ptr1 afs_uspc_param ptr2 sname ptr3 dname */
 #endif
-#define BOP_PARTIAL_STORE 6     /* parm1 is chunk to store */
+#define BOP_PARTIAL_STORE 	6   /* parm1 is chunk to store */
 
 #define	B_DONTWAIT	1	/* On failure return; don't wait */
 
@@ -414,6 +414,7 @@ struct sa_conn_vector {
     struct srvAddr *srvr;	/* server associated with this conn */
     short refCount;		/* reference count for allocation */
     unsigned short port;	/* port associated with this connection */
+    unsigned short serviceId;	/* serviceId associated with this connection */
     int flags;
 
     /* next connection to return when all in cvec are fully utilized */
@@ -574,7 +575,6 @@ struct chservinfo {
 #define VRecheck		2	/* recheck volume info with server */
 #define VBackup			4	/* is this a backup volume? */
 #define VForeign		8	/* this is a non-afs volume */
-#define VPartVisible		16	/* Volume's partition is visible on the client */
 #define VHardMount		32	/* we are hard-mount waiting for the vol */
 
 enum repstate { not_busy, end_not_busy = 6, rd_busy, rdwr_busy, offline };
@@ -668,7 +668,6 @@ struct SimpleLocks {
 #define CExtendedFile	0x08000000	/* extended file via ftruncate call. */
 #define CVInit          0x10000000      /* being initialized */
 #define CMetaDirty	0x20000000	/* vnode meta-data needs to be flushed */
-#define CPartVisible	0x40000000	/* fileserver partition visible on client */
 
 /* vcache vstate bits */
 #define VRevokeWait   0x1
@@ -950,11 +949,18 @@ struct vcache {
     struct afs_q multiPage;	/* list of multiPage_range structs */
 #endif
     int protocol;		/* RX_FILESERVER, RX_OSD, ... defined in afsint.xg */
-#if !defined(UKERNEL)
-    void *vpacRock;		/* used to read or write in visible partitions */
-#endif
-    afs_uint32 lastBRLWarnTime; /* last time we warned about byte-range locks */
+    afs_uint32 lastBRLWarnTime;	/* last time we warned about byte-range locks */
 };
+
+#define DEBUG_RXOSD             0x10000
+#define NO_HSM_RECALL           0x20000
+#define VICEP_NOSYNC            0x40000
+#define RX_ENABLE_IDLEDEAD      0x80000
+#define VPA_USE_LUSTRE_HACK     0x100000
+#define VPA_FAST_READ           0x200000
+#define RX_OSD_SOFT             0x800000
+
+#define DONT_PROCESS_FS         0xffffffff
 
 #define	DONT_CHECK_MODE_BITS	0
 #define	CHECK_MODE_BITS		1
@@ -1390,7 +1396,6 @@ extern struct brequest afs_brs[NBRS];	/* request structures */
 
 #define	AFS_FSPORT	    ((unsigned short) htons(7000))
 #define	AFS_VLPORT	    ((unsigned short) htons(7003))
-#define AFS_RXOSDPORT	    ((unsigned short) htons(7011))
 
 #define	afs_rdwr(avc, uio, rw, io, cred) \
     (((rw) == UIO_WRITE) ? afs_write(avc, uio, io, cred, 0) : afs_read(avc, uio, cred, 0))
@@ -1469,39 +1474,49 @@ extern struct brequest afs_brs[NBRS];	/* request structures */
 
 struct buf;
 
-struct rxfs_storeVariables {
-    struct rx_call *call;
-    struct vcache *vcache;
-    char *tbuffer;
-    struct iovec *tiov;
-    afs_int32 tnio;
-    afs_int32 hasNo64bit;
-    struct AFSStoreStatus InStatus;
-};
-
 struct storeOps {
     int (*prepare)(void *rock, afs_uint32 size, afs_uint32 *bytestoxfer);
     int (*read)(void *rock, struct osi_file *tfile, afs_uint32 offset,
-        afs_uint32 tlen, afs_uint32 *bytesread);
-    int (*write)(void *rock, afs_uint32 tlen, afs_uint32 *byteswritten);
+	afs_uint32 tlen, afs_uint32 *bytesread, char **abufp);
+    int (*write)(void *rock, char *buf, afs_uint32 tlen,
+	 afs_uint32 *byteswritten);
     int (*status)(void *rock);
     int (*padd)(void *rock, afs_uint32 tlen);
     int (*close)(void *rock, struct AFSFetchStatus *OutStatus,
         afs_int32 *doProcessFS);
     int (*destroy)(void **rock, afs_int32 error);
-    int (*storeproc)(struct storeOps *, void *, struct dcache *, int *,
-		     afs_size_t *);
+    int (*storeproc)(struct vcache *, struct storeOps *, void *,
+		     struct dcache *, int *, afs_size_t *);
 };
 
 struct fetchOps {
     int (*more)(void *rock, afs_int32 *length, afs_uint32 *moredata);
     int (*read)(void *rock, afs_uint32 tlen, afs_uint32 *bytesread);
     int (*write)(void *rock, struct osi_file *fp, afs_uint32 offset,
-        afs_uint32 tlen, afs_uint32 *byteswritten);
+         afs_uint32 tlen, afs_uint32 *byteswritten);
     int (*close)(void *rock, struct vcache *avc, struct dcache *adc,
-        struct afs_FetchOutput *Outputs);
+         struct afs_FetchOutput *Outputs);
     int (*destroy)(void **rock, afs_int32 error);
 };
+
+struct osd_procs {
+    int (*rxosd_fetchInit) (struct vcache *avc, afs_offs_t base,
+                afs_uint32 bytes, afs_uint32 *length, void* bypassparms,
+                struct osi_file *fP, struct vrequest *areq,
+                struct fetchOps **ops, void **rock);
+    int (*rxosd_storeInit) (struct vcache *avc, afs_offs_t base,
+                afs_size_t bytes, afs_size_t length,
+                int sync,  struct vrequest *areq,
+                struct storeOps **ops, void **rock);
+    void (*rxosd_checkProtocol) (struct vcache *avc, struct vrequest *areq,
+		afs_size_t length);
+    int (*rxosd_bringOnline) (struct vcache *avc, struct vrequest *areq);
+    int (*set_visible_osd) (long parm2, long parm3, long parm4, long parm5);
+    void (*close_vicep_file) (struct vcache *avc, struct vrequest *areq,
+                afs_int32 locked);
+    int (*set_afs_protocol)(afs_uint32 mask_in, afs_uint32 *mask_out);
+};
+extern struct osd_procs *osd_procs;
 
 /* fakestat support: opaque storage for afs_EvalFakeStat to remember
  * what vcache should be released.

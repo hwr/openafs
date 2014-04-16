@@ -171,6 +171,16 @@ extern struct afs_conn *afs_Conn(struct VenusFid *afid,
 			     struct vrequest *areq,
 			     afs_int32 locktype,
                              struct rx_connection **rxconn);
+extern struct afs_conn *afs_ConnSrv(struct VenusFid *afid,
+			     struct vrequest *areq,
+			     afs_int32 service, afs_int32 locktype,
+                             struct rx_connection **rxconn);
+extern struct afs_conn *afs_ConnBySAsrv(struct srvAddr *sap,
+				 unsigned short aport, afs_int32 service,
+				 afs_int32 acell, struct unixuser *tu,
+				 int force_if_down, afs_int32 create,
+				 afs_int32 locktype, afs_int32 replicated,
+				 struct rx_connection **rxconn);
 extern struct afs_conn *afs_ConnBySA(struct srvAddr *sap, unsigned short aport,
 				 afs_int32 acell, struct unixuser *tu,
 				 int force_if_down, afs_int32 create,
@@ -179,14 +189,18 @@ extern struct afs_conn *afs_ConnBySA(struct srvAddr *sap, unsigned short aport,
 extern struct afs_conn *afs_ConnByMHosts(struct server *ahosts[],
 				     unsigned short aport, afs_int32 acell,
 				     struct vrequest *areq,
-				     afs_int32 locktype,
-				     afs_int32 replicated,
+				     afs_int32 locktype, afs_int32 replicated,
 				     struct rx_connection **rxconn);
+extern struct afs_conn *afs_ConnByHostSrv(struct server *aserver,
+				   unsigned short aport, afs_int32 service, 
+				   afs_int32 acell, struct vrequest *areq,
+				   int aforce, afs_int32 locktype,
+				   afs_int32 replicated,
+				   struct rx_connection **rxconn);
 extern struct afs_conn *afs_ConnByHost(struct server *aserver,
 				   unsigned short aport, afs_int32 acell,
 				   struct vrequest *areq, int aforce,
-				   afs_int32 locktype,
-				   afs_int32 replicated,
+				   afs_int32 locktype, afs_int32 replicated,
 				   struct rx_connection **rxconn);
 extern void afs_PutConn(struct afs_conn *ac, struct rx_connection *rxconn,
                         afs_int32 locktype);
@@ -501,12 +515,32 @@ extern int afs_CacheStoreVCache(struct dcache **dcList, struct vcache *avc,
 				unsigned int high, unsigned int moredata,
 				afs_hyper_t *anewDV,
                                  afs_size_t *amaxStoredLength);
-extern int afs_CacheFetchProc(struct afs_conn *tc, struct rx_connection *rxconn,
-                                struct osi_file *fP,
+extern int afs_FetchProc(struct afs_conn *tc, struct rx_connection *rxconn,
+				struct osi_file *fP,
+				struct vrequest *areq,
 				afs_size_t abase, struct dcache *adc,
 				struct vcache *avc, afs_int32 size,
+				void *bparms,
 				struct afs_FetchOutput *tsmall)
-				AFS_NONNULL((5));
+				AFS_NONNULL((7));
+
+extern afs_int32 afs_GenericStoreProc(struct vcache *avc, struct storeOps *ops,
+				void *rock, struct dcache *tdc, int *shouldwake,
+				afs_size_t *bytesXferred);
+/* afs_rxosd.c */
+
+extern void init_rxosd_support(void);
+extern afs_int32 rxosd_storeInit(struct vcache *avc,
+				afs_offs_t base, afs_size_t bytes,
+				afs_size_t length, int sync, struct vrequest *areq,
+				struct storeOps **ops, void **rock);
+extern afs_int32 rxosd_fetchInit( struct vcache *avc, afs_offs_t base, 
+				afs_uint32 size, afs_uint32 *length, void *bypassparms,
+				struct osi_file *fP, struct vrequest *areq,
+				struct fetchOps **ops, void **rock);
+extern afs_int32 rxosd_bringOnline(struct vcache *avc, struct vrequest *areq);
+extern void rxosd_checkProtocol(struct vcache *avc, struct vrequest *areq, 
+				afs_size_t length);
 
 /* afs_memcache.c */
 extern int afs_InitMemCache(int blkCount, int blkSize, int flags);
@@ -524,6 +558,7 @@ extern int afs_MemWritevBlk(struct memCacheEntry *mceP, int offset,
 extern int afs_MemWriteUIO(struct vcache *, afs_dcache_id_t *, struct uio *);
 extern int afs_MemCacheTruncate(struct osi_file *fP,
 				int size);
+extern int afs_MemExtendEntry(struct memCacheEntry *mceP, afs_uint32 size);
 extern void shutdown_memcache(void);
 
 
@@ -631,8 +666,8 @@ extern void osi_ReleaseVM(struct vcache *avc, afs_ucred_t *acred);
 
 /* LINUX/osi_fetchstore.c */
 #ifdef AFS_LINUX26_ENV
-extern int afs_linux_storeproc(struct storeOps *, void *, struct dcache *,
-			       int *, afs_size_t *);
+extern int afs_linux_storeproc(struct vcache *, struct storeOps *, void *,
+			       struct dcache *, int *, afs_size_t *);
 #endif
 
 /* ARCH/osi_crypto.c */
@@ -847,8 +882,8 @@ extern int HandleIoctl(struct vcache *avc, afs_int32 acom,
 extern int afs_StoreAllSegments(struct vcache *avc,
 				struct vrequest *areq, int sync);
 extern int afs_InvalidateAllSegments(struct vcache *avc);
-extern int afs_ExtendSegments(struct vcache *avc,
-			      afs_size_t alen, struct vrequest *areq);
+extern int afs_ExtendSegments(struct vcache *avc, afs_size_t alen, 
+			      struct vrequest *areq);
 extern int afs_TruncateAllSegments(struct vcache *avc,
 				   afs_size_t alen, struct vrequest *areq,
 				   afs_ucred_t *acred);
@@ -871,14 +906,15 @@ extern void afs_GetCapabilities(struct server *ts);
 extern void ForceAllNewConnections(void);
 extern void afs_MarkServerUpOrDown(struct srvAddr *sa, int a_isDown);
 extern afs_int32 afs_ServerDown(struct srvAddr *sa, int code,
-                                struct rx_connection *rxconn);
+				struct rx_connection *rxconn);
 extern void afs_CountServers(void);
 extern void afs_CheckServers(int adown, struct cell *acellp);
 extern void afs_LoopServers(int adown, struct cell *acellp, int vlalso,
-			    void (*func1) (int nconns, struct rx_connection **rxconns,
-					   struct afs_conn **conns),
-			    void (*func2) (int nconns, struct rx_connection **rxconns,
-					   struct afs_conn **conns));
+			    int rxosdalso,
+                            void (*func1) (int nconns, struct rx_connection **rxconns,
+                                           struct afs_conn **conns),
+                            void (*func2) (int nconns, struct rx_connection **rxconns,
+                                           struct afs_conn **conns));
 extern unsigned int afs_random(void);
 extern int afs_randomMod15(void);
 extern int afs_randomMod127(void);

@@ -29,6 +29,7 @@ TOP_OBJ_AUTH = ${TOP_OBJDIR}/src/auth
 TOP_OBJ_FSINT = ${TOP_OBJDIR}/src/fsint
 TOP_OBJ_RXSTAT = ${TOP_OBJDIR}/src/rxstat
 TOP_OBJ_VLSERVER = ${TOP_OBJDIR}/src/vlserver
+TOP_OBJ_RXOSD = ${TOP_OBJDIR}/src/rxosd
 
 TOP_SRC_AFS = ${TOP_SRCDIR}/afs
 TOP_SRC_AUTH = ${TOP_SRCDIR}/auth
@@ -229,7 +230,12 @@ UAFSOBJ = \
 	$(UOBJ)/token.xdr.o \
 	$(UOBJ)/token.o \
 	$(UOBJ)/xdr_mem.o \
-	$(UOBJ)/xdr_len.o
+	$(UOBJ)/xdr_len.o \
+	$(UOBJ)/afs_rxosd.o \
+	$(UOBJ)/rxosd.cs.o \
+	$(UOBJ)/rxosd.xdr.o \
+	$(UOBJ)/vicedosd.cs.o \
+	$(UOBJ)/vicedosd.xdr.o
 
 PICUAFSOBJ = \
 	$(PICOBJ)/afs_atomlist.o \
@@ -352,7 +358,12 @@ PICUAFSOBJ = \
 	$(PICOBJ)/token.xdr.o \
 	$(PICOBJ)/token.o \
 	$(PICOBJ)/xdr_mem.o \
-	$(PICOBJ)/xdr_len.o
+	$(PICOBJ)/xdr_len.o \
+	$(PICOBJ)/afs_rxosd.o \
+	$(PICOBJ)/rxosd.cs.o \
+	$(PICOBJ)/rxosd.xdr.o \
+	$(PICOBJ)/vicedosd.cs.o \
+	$(PICOBJ)/vicedosd.xdr.o
 
 AFSWEBOBJ = \
 	$(WEBOBJ)/afs_atomlist.o \
@@ -475,7 +486,12 @@ AFSWEBOBJ = \
 	$(WEBOBJ)/token.xdr.o \
 	$(WEBOBJ)/token.o \
 	$(WEBOBJ)/xdr_mem.o \
-	$(WEBOBJ)/xdr_len.o
+	$(WEBOBJ)/xdr_len.o \
+	$(WEBOBJ)/afs_rxosd.o \
+	$(WEBOBJ)/rxosd.cs.o \
+	$(WEBOBJ)/rxosd.xdr.o \
+	$(WEBOBJ)/vicedosd.cs.o \
+	$(WEBOBJ)/vicedosd.xdr.o
 
 AFSWEBOBJKRB = \
 	$(WEBOBJ)/afs_atomlist.o \
@@ -592,7 +608,12 @@ AFSWEBOBJKRB = \
 	$(WEBOBJ)/token.xdr.o \
 	$(WEBOBJ)/token.o \
 	$(WEBOBJ)/xdr_mem.o \
-	$(WEBOBJ)/xdr_len.o
+	$(WEBOBJ)/xdr_len.o \
+	$(WEBOBJ)/afs_rxosd.o \
+	$(WEBOBJ)/rxosd.cs.o \
+	$(WEBOBJ)/rxosd.xdr.o \
+	$(WEBOBJ)/vicedosd.cs.o \
+	$(WEBOBJ)/vicedosd.xdr.o
 
 JUAFSOBJ = \
 	$(JUAFS)/afs_atomlist.o \
@@ -713,7 +734,12 @@ JUAFSOBJ = \
 	$(JUAFS)/token.xdr.o \
 	$(JUAFS)/token.o \
 	$(JUAFS)/xdr_mem.o \
-	$(JUAFS)/xdr_len.o
+	$(JUAFS)/xdr_len.o \
+	$(JUAFS)/afs_rxosd.o \
+	$(JUAFS)/rxosd.cs.o \
+	$(JUAFS)/rxosd.xdr.o \
+	$(JUAFS)/vicedosd.cs.o \
+	$(JUAFS)/vicedosd.xdr.o
 
 # Compilation rules
 
@@ -967,6 +993,16 @@ $(UOBJ)/xdr_mem.o: $(TOP_SRC_RX)/xdr_mem.c
 	$(CRULE1)
 $(UOBJ)/xdr_len.o: $(TOP_SRC_RX)/xdr_len.c
 	$(CRULE1)
+$(UOBJ)/afs_rxosd.o: $(TOP_SRC_AFS)/afs_rxosd.c
+	$(CRULE1)
+$(UOBJ)/rxosd.cs.o: $(TOP_OBJ_RXOSD)/rxosd.cs.c
+	$(CRULE1)
+$(UOBJ)/rxosd.xdr.o: $(TOP_OBJ_RXOSD)/rxosd.xdr.c
+	$(CRULE1)
+$(UOBJ)/vicedosd.cs.o: $(TOP_OBJ_RXOSD)/vicedosd.cs.c
+	$(CRULE1)
+$(UOBJ)/vicedosd.xdr.o: $(TOP_OBJ_RXOSD)/vicedosd.xdr.c
+	$(CRULE1)
 
 # These files are for the PIC version of libuafs
 
@@ -1217,6 +1253,16 @@ $(PICOBJ)/token.o: $(TOP_SRCDIR)/auth/token.c
 $(PICOBJ)/xdr_mem.o: $(TOP_SRC_RX)/xdr_mem.c
 	$(CRULEPIC)
 $(PICOBJ)/xdr_len.o: $(TOP_SRC_RX)/xdr_len.c
+	$(CRULEPIC)
+$(PICOBJ)/afs_rxosd.o: $(TOP_SRC_AFS)/afs_rxosd.c
+	$(CRULEPIC)
+$(PICOBJ)/rxosd.cs.o: $(TOP_OBJ_RXOSD)/rxosd.cs.c
+	$(CRULEPIC)
+$(PICOBJ)/rxosd.xdr.o: $(TOP_OBJ_RXOSD)/rxosd.xdr.c
+	$(CRULEPIC)
+$(PICOBJ)/vicedosd.cs.o: $(TOP_OBJ_RXOSD)/vicedosd.cs.c
+	$(CRULEPIC)
+$(PICOBJ)/vicedosd.xdr.o: $(TOP_OBJ_RXOSD)/vicedosd.xdr.c
 	$(CRULEPIC)
 
 # These files are for the netscape plugin
@@ -1474,6 +1520,16 @@ $(WEBOBJ)/xdr_mem.o: $(TOP_SRC_RX)/xdr_mem.c
 	$(CRULE2)
 $(WEBOBJ)/xdr_len.o: $(TOP_SRC_RX)/xdr_len.c
 	$(CRULE2)
+$(WEBOBJ)/afs_rxosd.o: $(TOP_SRC_AFS)/afs_rxosd.c
+	$(CRULE2)
+$(WEBOBJ)/rxosd.cs.o: $(TOP_OBJ_RXOSD)/rxosd.cs.c
+	$(CRULE2)
+$(WEBOBJ)/rxosd.xdr.o: $(TOP_OBJ_RXOSD)/rxosd.xdr.c
+	$(CRULE2)
+$(WEBOBJ)/vicedosd.cs.o: $(TOP_OBJ_RXOSD)/vicedosd.cs.c
+	$(CRULE2)
+$(WEBOBJ)/vicedosd.xdr.o: $(TOP_OBJ_RXOSD)/vicedosd.xdr.c
+	$(CRULE2)
 
 # These are for libjuafs.a 
 # Used for linking with libafsauthent and libafsrpc
@@ -1723,6 +1779,16 @@ $(JUAFS)/token.o: $(TOP_SRCDIR)/auth/token.c
 $(JUAFS)/xdr_mem.o: $(TOP_SRC_RX)/xdr_mem.c
 	$(CRULE1)
 $(JUAFS)/xdr_len.o: $(TOP_SRC_RX)/xdr_len.c
+	$(CRULE1)
+$(JUAFS)/afs_rxosd.o: $(TOP_SRC_AFS)/afs_rxosd.c
+	$(CRULE1)
+$(JUAFS)/rxosd.cs.o: $(TOP_OBJ_RXOSD)/rxosd.cs.c
+	$(CRULE1)
+$(JUAFS)/rxosd.xdr.o: $(TOP_OBJ_RXOSD)/rxosd.xdr.c
+	$(CRULE1)
+$(JUAFS)/vicedosd.cs.o: $(TOP_OBJ_RXOSD)/vicedosd.cs.c
+	$(CRULE1)
+$(JUAFS)/vicedosd.xdr.o: $(TOP_OBJ_RXOSD)/vicedosd.xdr.c
 	$(CRULE1)
 
 $(PERLUAFS)/ukernel.pm: $(PERLUAFS)/ukernel_swig_perl.c

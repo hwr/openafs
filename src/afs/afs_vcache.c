@@ -49,6 +49,18 @@
 afs_int32 afs_maxvcount = 0;	/* max number of vcache entries */
 afs_int32 afs_vcount = 0;	/* number of vcache in use now */
 
+extern afs_uint32 afs_protocols;
+struct osd_procs osd_procs_0 = {
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL
+};
+struct osd_procs *osd_procs = &osd_procs_0;
+
 #ifdef AFS_SGI_ENV
 int afsvnumbers = 0;
 #endif
@@ -426,7 +438,7 @@ afs_FlushVCBs(afs_int32 lockit)
      */
 
     if (lockit == 2)
-	afs_LoopServers(AFS_LS_ALL, NULL, 0, FlushAllVCBs, NULL);
+	afs_LoopServers(AFS_LS_ALL, NULL, 0, 0, FlushAllVCBs, NULL);
 
     ObtainReadLock(&afs_xserver);
     for (i = 0; i < NSERVERS; i++) {
@@ -723,7 +735,7 @@ afs_ShakeLooseVCaches(afs_int32 anumber)
 	    refpanic("CVFlushed on VLRU");
 	} else if (i++ > limit) {
 	    afs_warn("afs_ShakeLooseVCaches: i %d limit %d afs_vcount %d afs_maxvcount %d\n",
-	             (int)i, limit, (int)afs_vcount, (int)afs_maxvcount);
+		     (int)i, limit, (int)afs_vcount, (int)afs_maxvcount);
 	    refpanic("Found too many AFS vnodes on VLRU (VLRU cycle?)");
 	} else if (QNext(uq) != tq) {
 	    refpanic("VLRU inconsistent");
@@ -833,6 +845,7 @@ afs_PrePopulateVCache(struct vcache *avc, struct VenusFid *afid,
     avc->cachingStates = 0;
     avc->cachingTransitions = 0;
 #endif
+    avc->protocol = RX_FILESERVER;    /* RX_FILESERVER  == 1 as default */
 }
 
 void
@@ -1273,6 +1286,14 @@ afs_SimpleVStat(struct vcache *avc,
     avc->f.m.Mode = astat->UnixModeBits;
     if (vType(avc) == VREG) {
 	avc->f.m.Mode |= S_IFREG;
+	if (osd_procs->rxosd_checkProtocol) {
+	    if ((afs_protocols & RX_OSD) && (astat->FetchStatusProtocol & ~1)) {
+	        avc->protocol = astat->FetchStatusProtocol;
+	        if (!(avc->protocol & PROTOCOL_MASK))
+		    avc->protocol |= RX_FILESERVER;
+	    }
+	} else
+	    avc->protocol = RX_FILESERVER;
     } else if (vType(avc) == VDIR) {
 	avc->f.m.Mode |= S_IFDIR;
     } else if (vType(avc) == VLNK) {
@@ -1474,6 +1495,8 @@ afs_ProcessFS(struct vcache *avc,
     afs_size_t length;
     AFS_STATCNT(afs_ProcessFS);
 
+    if (astat->InterfaceVersion == DONT_PROCESS_FS)
+	return;
 #ifdef AFS_64BIT_CLIENT
     FillInt64(length, astat->Length_hi, astat->Length);
 #else /* AFS_64BIT_CLIENT */
@@ -1524,6 +1547,14 @@ afs_ProcessFS(struct vcache *avc,
 	}
     }
     avc->f.anyAccess = astat->AnonymousAccess;
+    if (osd_procs->rxosd_checkProtocol) {
+        if ((afs_protocols & RX_OSD) && (astat->FetchStatusProtocol & ~1)) {
+	    avc->protocol = astat->FetchStatusProtocol & ~1;
+	    if (!(avc->protocol & PROTOCOL_MASK))
+	        avc->protocol |= RX_FILESERVER;
+        }
+    } else
+	avc->protocol = RX_FILESERVER;
 #ifdef badidea
     if ((astat->CallerAccess & ~astat->AnonymousAccess))
 	/*   USED TO SAY :
@@ -1831,7 +1862,7 @@ afs_GetVCache(struct VenusFid *afid, struct vrequest *areq,
 		/* Nothing to do otherwise...*/
 		code = ENETDOWN;
 		/* printf("Network is down in afs_GetCache"); */
-	    } else
+	    } else 
 	        code = afs_FetchStatus(tvc, afid, areq, &OutStatus);
 
 	    /* For the NFS translator's benefit, make sure
@@ -2635,7 +2666,7 @@ afs_ResetVCache(struct vcache *avc, afs_ucred_t *acred, afs_int32 skipdnlc)
     /* now find the disk cache entries */
     afs_TryToSmush(avc, acred, 1);
     if (!skipdnlc) {
-	osi_dnlc_purgedp(avc);
+        osi_dnlc_purgedp(avc);
     }
     if (avc->linkData && !(avc->f.states & CCore)) {
 	afs_osi_Free(avc->linkData, strlen(avc->linkData) + 1);

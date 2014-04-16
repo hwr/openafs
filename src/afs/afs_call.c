@@ -1314,6 +1314,8 @@ afs_syscall_call(long parm, long parm2, long parm3,
     } else if (parm == AFSOP_SET_RMTSYS_FLAG) {
 	afs_rmtsys_enable = parm2;
 	code = 0;
+    } else if (parm == AFSOP_LIBAFSOSD) {
+	init_rxosd_support();
     } else {
 	code = EINVAL;
     }

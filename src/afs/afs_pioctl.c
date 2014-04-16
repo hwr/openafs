@@ -28,8 +28,9 @@
 #include "afs/afs_bypasscache.h"
 #include "rx/rx_globals.h"
 #include "token.h"
+#include "../rxosd/fs_rxosd_common.h"
+#include "../rxosd/vicedosd.h"
 
-extern int afs_rmtsys_enable;
 struct VenusFid afs_rootFid;
 afs_int32 afs_waitForever = 0;
 short afs_waitForeverCount = 0;
@@ -307,6 +308,7 @@ DECL_PIOCTL(PGetPAG);
 #if defined(AFS_CACHE_BYPASS) && defined(AFS_LINUX24_ENV)
 DECL_PIOCTL(PSetCachingThreshold);
 #endif
+DECL_PIOCTL(PSetProtocols);
 
 /*
  * A macro that says whether we're going to need HandleClientContext().
@@ -401,10 +403,11 @@ static pioctlFunction VpioctlSw[] = {
     PBogus,			/* 63 -- arla: print xfs status */
     PBogus,			/* 64 -- arla: force cache check */
     PBogus,			/* 65 -- arla: break callback */
-    PPrefetchFromTape,		/* 66 -- MR-AFS: prefetch file from tape */
+    PPrefetchFromTape,		/* 66 -- RXOSD: prefetch file from tape */
     PFsCmd,			/* 67 -- RXOSD: generic commnd interface */
     PBogus,			/* 68 -- arla: fetch stats */
     PGetVnodeXStatus2,		/* 69 - get caller access and some vcache status */
+    PSetProtocols,		/* 70 - allow protocols (RX_OSD, VICEP_ACCESS) */
 };
 
 static pioctlFunction CpioctlSw[] = {
@@ -422,7 +425,7 @@ static pioctlFunction CpioctlSw[] = {
     PBogus,                     /* 11 */
     PPrecache,                  /* 12 */
     PGetPAG,                    /* 13 */
-    PFlushAllVolumeData,        /* 14 */
+    PFlushAllVolumeData,	/* 14 */
 };
 
 static pioctlFunction OpioctlSw[]  = {
@@ -813,7 +816,7 @@ afs_xioctl(afs_proc_t *p, const struct ioctl_args *uap, register_t *retval)
 
     AFS_STATCNT(afs_xioctl);
 #if defined(AFS_NBSD40_ENV)
-    fdp = p->l_proc->p_fd;
+     fdp = p->l_proc->p_fd;
 #else
     fdp = p->p_fd;
 #endif
@@ -822,8 +825,8 @@ afs_xioctl(afs_proc_t *p, const struct ioctl_args *uap, register_t *retval)
 	return (EBADF);
 #elif defined(AFS_FBSD100_ENV)
     if ((uap->fd >= fdp->fd_nfiles)
-	|| ((fd = fdp->fd_ofiles[uap->fd].fde_file) == NULL))
-	return EBADF;
+        || ((fd = fdp->fd_ofiles[uap->fd].fde_file) == NULL))
+        return EBADF;
 #else
     if ((uap->fd >= fdp->fd_nfiles)
 	|| ((fd = fdp->fd_ofiles[uap->fd]) == NULL))
@@ -846,7 +849,7 @@ afs_xioctl(afs_proc_t *p, const struct ioctl_args *uap, register_t *retval)
 #if defined(AFS_NBSD50_ENV)
 	    if (((SCARG(uap, com) >> 8) & 0xff) == 'V') {
 #else
-            if (((uap->com >> 8) & 0xff) == 'V') {
+	    if (((uap->com >> 8) & 0xff) == 'V') {
 #endif
 		struct afs_ioctl *datap;
 		AFS_GLOCK();
@@ -880,7 +883,7 @@ afs_xioctl(afs_proc_t *p, const struct ioctl_args *uap, register_t *retval)
     if (!ioctlDone) {
 # if defined(AFS_FBSD_ENV)
 #  if (__FreeBSD_version >= 900044)
-	return sys_ioctl(td, uap);
+        return sys_ioctl(td, uap);
 #  else
 	return ioctl(td, uap);
 #  endif
@@ -3467,10 +3470,10 @@ FlushVolumeData(struct VenusFid *afid, afs_ucred_t * acred)
 #endif
 
     if (!afid) {
-	all = 1;
+        all = 1;
     } else {
-	volume = afid->Fid.Volume;	/* who to zap */
-	cell = afid->Cell;
+        volume = afid->Fid.Volume;      /* who to zap */
+        cell = afid->Cell;
     }
 
     /*
@@ -3480,95 +3483,95 @@ FlushVolumeData(struct VenusFid *afid, afs_ucred_t * acred)
  loop:
     ObtainReadLock(&afs_xvcache);
     for (i = (afid ? VCHashV(afid) : 0); i < VCSIZE; i = (afid ? VCSIZE : i+1)) {
-	for (tq = afs_vhashTV[i].prev; tq != &afs_vhashTV[i]; tq = uq) {
-	    uq = QPrev(tq);
-	    tvc = QTOVH(tq);
-	    if (all || (tvc->f.fid.Fid.Volume == volume && tvc->f.fid.Cell == cell)) {
-		if (tvc->f.states & CVInit) {
-		    ReleaseReadLock(&afs_xvcache);
-		    afs_osi_Sleep(&tvc->f.states);
-		    goto loop;
-		}
+        for (tq = afs_vhashTV[i].prev; tq != &afs_vhashTV[i]; tq = uq) {
+            uq = QPrev(tq);
+            tvc = QTOVH(tq);
+            if (all || (tvc->f.fid.Fid.Volume == volume && tvc->f.fid.Cell == cell)) {
+                if (tvc->f.states & CVInit) {
+                    ReleaseReadLock(&afs_xvcache);
+                    afs_osi_Sleep(&tvc->f.states);
+                    goto loop;
+                }
 #ifdef AFS_DARWIN80_ENV
-		if (tvc->f.states & CDeadVnode) {
-		    ReleaseReadLock(&afs_xvcache);
-		    afs_osi_Sleep(&tvc->f.states);
-		    goto loop;
-		}
-		vp = AFSTOV(tvc);
-		if (vnode_get(vp))
-		    continue;
-		if (vnode_ref(vp)) {
-		    AFS_GUNLOCK();
-		    vnode_put(vp);
-		    AFS_GLOCK();
-		    continue;
-		}
+                if (tvc->f.states & CDeadVnode) {
+                    ReleaseReadLock(&afs_xvcache);
+                    afs_osi_Sleep(&tvc->f.states);
+                    goto loop;
+                }
+                vp = AFSTOV(tvc);
+                if (vnode_get(vp))
+                    continue;
+                if (vnode_ref(vp)) {
+                    AFS_GUNLOCK();
+                    vnode_put(vp);
+                    AFS_GLOCK();
+                    continue;
+                }
 #else
-		AFS_FAST_HOLD(tvc);
+                AFS_FAST_HOLD(tvc);
 #endif
-		ReleaseReadLock(&afs_xvcache);
+                ReleaseReadLock(&afs_xvcache);
 #ifdef AFS_BOZONLOCK_ENV
-		afs_BozonLock(&tvc->pvnLock, tvc);	/* Since afs_TryToSmush will do a pvn_vptrunc */
+                afs_BozonLock(&tvc->pvnLock, tvc);      /* Since afs_TryToSmush will do a pvn_vptrunc */
 #endif
-		ObtainWriteLock(&tvc->lock, 232);
-		afs_ResetVCache(tvc, acred, 1);
-		ReleaseWriteLock(&tvc->lock);
+                ObtainWriteLock(&tvc->lock, 232);
+                afs_ResetVCache(tvc, acred, 1);
+                ReleaseWriteLock(&tvc->lock);
 #ifdef AFS_BOZONLOCK_ENV
-		afs_BozonUnlock(&tvc->pvnLock, tvc);
+                afs_BozonUnlock(&tvc->pvnLock, tvc);
 #endif
 #ifdef AFS_DARWIN80_ENV
-		vnode_put(AFSTOV(tvc));
+                vnode_put(AFSTOV(tvc));
 #endif
-		ObtainReadLock(&afs_xvcache);
-		uq = QPrev(tq);
-		/* our tvc ptr is still good until now */
-		AFS_FAST_RELE(tvc);
-	    }
-	}
+                ObtainReadLock(&afs_xvcache);
+                uq = QPrev(tq);
+                /* our tvc ptr is still good until now */
+                AFS_FAST_RELE(tvc);
+            }
+        }
     }
     ReleaseReadLock(&afs_xvcache);
 
 
-    ObtainWriteLock(&afs_xdcache, 328);	/* needed to flush any stuff */
+    ObtainWriteLock(&afs_xdcache, 328); /* needed to flush any stuff */
     for (i = 0; i < afs_cacheFiles; i++) {
-	if (!(afs_indexFlags[i] & IFEverUsed))
-	    continue;		/* never had any data */
-	tdc = afs_GetValidDSlot(i);
-	if (!tdc) {
-	    continue;
-	}
-	if (tdc->refCount <= 1) {    /* too high, in use by running sys call */
-	    ReleaseReadLock(&tdc->tlock);
-	    if (all || (tdc->f.fid.Fid.Volume == volume && tdc->f.fid.Cell == cell)) {
-		if (!(afs_indexFlags[i] & (IFDataMod | IFFree | IFDiscarded))) {
-		    /* if the file is modified, but has a ref cnt of only 1,
-		     * then someone probably has the file open and is writing
-		     * into it. Better to skip flushing such a file, it will be
-		     * brought back immediately on the next write anyway.
-		     *
-		     * Skip if already freed.
-		     *
-		     * If we *must* flush, then this code has to be rearranged
-		     * to call afs_storeAllSegments() first */
-		    afs_FlushDCache(tdc);
-		}
-	    }
-	} else {
-	    ReleaseReadLock(&tdc->tlock);
-	}
-	afs_PutDCache(tdc);	/* bumped by getdslot */
+        if (!(afs_indexFlags[i] & IFEverUsed))
+            continue;           /* never had any data */
+        tdc = afs_GetValidDSlot(i);
+        if (!tdc) {
+            continue;
+        }
+        if (tdc->refCount <= 1) {    /* too high, in use by running sys call */
+            ReleaseReadLock(&tdc->tlock);
+            if (all || (tdc->f.fid.Fid.Volume == volume && tdc->f.fid.Cell == cell)) {
+                if (!(afs_indexFlags[i] & (IFDataMod | IFFree | IFDiscarded))) {
+                    /* if the file is modified, but has a ref cnt of only 1,
+                     * then someone probably has the file open and is writing
+                     * into it. Better to skip flushing such a file, it will be
+                     * brought back immediately on the next write anyway.
+                     *
+                     * Skip if already freed.
+                     *
+                     * If we *must* flush, then this code has to be rearranged
+                     * to call afs_storeAllSegments() first */
+                    afs_FlushDCache(tdc);
+                }
+            }
+        } else {
+            ReleaseReadLock(&tdc->tlock);
+        }
+        afs_PutDCache(tdc);     /* bumped by getdslot */
     }
     ReleaseWriteLock(&afs_xdcache);
 
     ObtainReadLock(&afs_xvolume);
     for (i = 0; i < NVOLS; i++) {
-	for (tv = afs_volumes[i]; tv; tv = tv->next) {
-	    if (all || tv->volume == volume) {
-		afs_ResetVolumeInfo(tv);
-		break;
-	    }
-	}
+        for (tv = afs_volumes[i]; tv; tv = tv->next) {
+            if (all || tv->volume == volume) {
+                afs_ResetVolumeInfo(tv);
+                break;
+            }
+        }
     }
     ReleaseReadLock(&afs_xvolume);
 
@@ -3601,9 +3604,9 @@ DECL_PIOCTL(PFlushVolumeData)
 {
     AFS_STATCNT(PFlushVolumeData);
     if (!avc)
-	return EINVAL;
-    if (!afs_resourceinit_flag)	/* afs daemons haven't started yet */
-	return EIO;		/* Inappropriate ioctl for device */
+        return EINVAL;
+    if (!afs_resourceinit_flag) /* afs daemons haven't started yet */
+        return EIO;             /* Inappropriate ioctl for device */
 
     FlushVolumeData(&avc->f.fid, *acred);
     return 0;
@@ -3614,27 +3617,27 @@ DECL_PIOCTL(PFlushVolumeData)
  *
  * \ingroup pioctl
  *
- * \param[in] ain	not in use
- * \param[out] aout	not in use
+ * \param[in] ain       not in use
+ * \param[out] aout     not in use
  *
- * \retval EINVAL	Error if some of the standard args aren't set
- * \retval EIO		Error if the afs daemon hasn't started yet
+ * \retval EINVAL       Error if some of the standard args aren't set
+ * \retval EIO          Error if the afs daemon hasn't started yet
  *
  * \post
- * 	Flush all cached contents.  Exactly what stays and what
- * 	goes depends on the platform.
+ *      Flush all cached contents.  Exactly what stays and what
+ *      goes depends on the platform.
  *
  * \notes
- * 	Does not flush a file that a user has open and is using, because
- * 	it will be re-created on next write.  Also purges the dnlc,
- * 	because things are screwed up.
+ *      Does not flush a file that a user has open and is using, because
+ *      it will be re-created on next write.  Also purges the dnlc,
+ *      because things are screwed up.
  */
 DECL_PIOCTL(PFlushAllVolumeData)
 {
     AFS_STATCNT(PFlushAllVolumeData);
 
-    if (!afs_resourceinit_flag)	/* afs daemons haven't started yet */
-	return EIO;		/* Inappropriate ioctl for device */
+    if (!afs_resourceinit_flag) /* afs daemons haven't started yet */
+        return EIO;             /* Inappropriate ioctl for device */
 
     FlushVolumeData(NULL, *acred);
     return 0;
@@ -4966,19 +4969,18 @@ DECL_PIOCTL(PRxStatPeer)
     return 0;
 }
 
+struct prefetchout {
+    afs_int32 length;
+    struct AFSFid fid;
+};
+
 DECL_PIOCTL(PPrefetchFromTape)
 {
     afs_int32 code;
-    afs_int32 outval;
-    struct afs_conn *tc;
-    struct rx_call *tcall;
-    struct AFSVolSync tsync;
-    struct AFSFetchStatus OutStatus;
-    struct AFSCallBack CallBack;
     struct VenusFid tfid;
     struct AFSFid *Fid;
     struct vcache *tvc;
-    struct rx_connection *rxconn;
+    struct prefetchout out;
 
     AFS_STATCNT(PPrefetchFromTape);
     if (!avc)
@@ -4995,42 +4997,27 @@ DECL_PIOCTL(PPrefetchFromTape)
 
     tvc = afs_GetVCache(&tfid, areq, NULL, NULL);
     if (!tvc) {
-	afs_Trace3(afs_iclSetp, CM_TRACE_PREFETCHCMD, ICL_TYPE_POINTER, tvc,
-		   ICL_TYPE_FID, &tfid, ICL_TYPE_FID, &avc->f.fid);
 	return ENOENT;
     }
-    afs_Trace3(afs_iclSetp, CM_TRACE_PREFETCHCMD, ICL_TYPE_POINTER, tvc,
-	       ICL_TYPE_FID, &tfid, ICL_TYPE_FID, &tvc->f.fid);
 
-    do {
-	tc = afs_Conn(&tvc->f.fid, areq, SHARED_LOCK, &rxconn);
-	if (tc) {
+    code = rxosd_bringOnline(tvc, areq);
 
-	    RX_AFS_GUNLOCK();
-	    tcall = rx_NewCall(rxconn);
-	    code =
-		StartRXAFS_FetchData(tcall, (struct AFSFid *)&tvc->f.fid.Fid, 0,
-				     0);
-	    if (!code) {
-		rx_Read(tcall, (char *)&outval, sizeof(afs_int32));
-		code =
-		    EndRXAFS_FetchData(tcall, &OutStatus, &CallBack, &tsync);
-	    }
-	    code = rx_EndCall(tcall, code);
-	    RX_AFS_GLOCK();
-	} else
-	    code = -1;
-    } while (afs_Analyze
-	     (tc, rxconn, code, &tvc->f.fid, areq, AFS_STATS_FS_RPCIDX_RESIDENCYRPCS,
-	      SHARED_LOCK, NULL));
-    /* This call is done only to have the callback things handled correctly */
-    afs_FetchStatus(tvc, &tfid, areq, &OutStatus);
     afs_PutVCache(tvc);
 
-    if (code)
+    if (code && code != OSD_WAIT_FOR_TAPE && code != ENFILE /* && code != UAENFILE */)
 	return code;
 
-    return afs_pd_putInt(aout, outval);
+    out.fid.Volume = tfid.Fid.Volume;
+    out.fid.Vnode = tfid.Fid.Vnode;
+    out.fid.Unique = tfid.Fid.Unique;
+    if (code == OSD_WAIT_FOR_TAPE)
+        out.length = -1;        /* tape fetch started */
+    else if (!code)
+        out.length = 0;         /* file already on-line */
+    else
+        out.length = ENFILE;    /* Too many fetch requests for this user */
+
+    return afs_pd_putBytes(aout, &out, sizeof(struct prefetchout));
 }
 
 DECL_PIOCTL(PFsCmd)
@@ -5046,6 +5033,9 @@ DECL_PIOCTL(PFsCmd)
 
     if (!avc)
 	return EINVAL;
+    code = afs_VerifyVCache(avc, areq);
+    if (code)
+       return code;
 
     Inputs = afs_pd_inline(ain, sizeof(*Inputs));
     if (Inputs == NULL)
@@ -5072,13 +5062,18 @@ DECL_PIOCTL(PFsCmd)
 
     if (Inputs->command) {
 	do {
+            code = afs_VerifyVCache(tvc, areq);
+            if (code) {
+                afs_PutVCache(tvc);
+                return code;
+            }
 	    tc = afs_Conn(&tvc->f.fid, areq, SHARED_LOCK, &rxconn);
 	    if (tc) {
 		RX_AFS_GUNLOCK();
-		code =
-		    RXAFS_FsCmd(rxconn, Fid, Inputs,
-					(struct FsCmdOutputs *)aout);
+		code = RXAFS_FsCmd(rxconn, Fid, Inputs, Outputs);
 		RX_AFS_GLOCK();
+                if (!code && Inputs->command == CMD_REPLACE_OSD)
+                    tvc->f.states &= ~CStatd;
 	    } else
 		code = -1;
 	} while (afs_Analyze
@@ -5101,6 +5096,32 @@ DECL_PIOCTL(PFsCmd)
     afs_PutVCache(tvc);
 
     return code;
+}
+
+DECL_PIOCTL(PSetProtocols)
+{
+#ifndef UKERNEL
+    afs_int32 code;
+    afs_uint32 mask_in = 0;
+    afs_uint32 mask_out = 0;
+/*  AFS_STATCNT(PSetProtocols); */
+
+    if (!afs_resourceinit_flag) /* afs daemons haven't started yet */
+        return EIO;             /* Inappropriate ioctl for device */
+
+    if (!osd_procs->set_afs_protocol) /* OSD procs not initialized */
+	return EIO;
+
+    if (afs_pd_getUint(ain, &mask_in) == 0) {
+        if (!afs_osi_suser(*acred))
+            return EACCES;
+    }
+
+    code = (osd_procs->set_afs_protocol)(mask_in, &mask_out);
+
+    return afs_pd_putInt(aout, mask_out);
+#endif /* UKERNEL */
+    return 0;
 }
 
 DECL_PIOCTL(PNewUuid)
@@ -5381,13 +5402,13 @@ DECL_PIOCTL(PSetTokens2)
 
     if (tokenSet.flags & AFSTOKEN_EX_SETPAG) {
 #if defined(AFS_LINUX26_ENV)
-	afs_ucred_t *old_cred = *acred;
+        afs_ucred_t *old_cred = *acred;
 #endif
 	if (_settok_setParentPag(acred) == 0) {
 #if defined(AFS_LINUX26_ENV)
-	    /* setpag() may have changed our credentials */
-	    *acred = crref();
-	    crfree(old_cred);
+            /* setpag() may have changed our credentials */
+            *acred = crref();
+            crfree(old_cred);
 #endif
 	    code = afs_CreateReq(&treq, *acred);
 	    if (code) {

@@ -214,6 +214,13 @@ setup:
 		ln -fs ../Makefile $${KDIR}/Makefile.afs ; \
 		ln -fs ../Makefile.common $${KDIR}/Makefile.common; \
 		ln -fs ../config $${KDIR}/config; \
+		ln -fs @TOP_OBJDIR@/src/rxosd/rxosd.h $${KDIR}/rxosd.h; \
+		ln -fs @TOP_OBJDIR@/src/rxosd/fs_rxosd_common.h $${KDIR}/fs_rxosd_common.h; \
+		ln -fs @TOP_OBJDIR@/src/rxosd/vicedosd.h $${KDIR}/vicedosd.h; \
+		ln -fs @TOP_OBJDIR@/src/rxosd/Krxosd.cs.c $${KDIR}/Krxosd.cs.c; \
+		ln -fs @TOP_OBJDIR@/src/rxosd/Krxosd.xdr.c $${KDIR}/Krxosd.xdr.c; \
+		ln -fs @TOP_OBJDIR@/src/rxosd/Kvicedosd.cs.c $${KDIR}/Kvicedosd.cs.c; \
+		ln -fs @TOP_OBJDIR@/src/rxosd/Kvicedosd.xdr.c $${KDIR}/Kvicedosd.xdr.c; \
 	done 
 
 # Compile SP and MP clients as requested

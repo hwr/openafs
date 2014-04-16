@@ -835,7 +835,7 @@ struct file_operations afs_file_fops = {
   .aio_read =	afs_linux_aio_read,
   .aio_write =	afs_linux_aio_write,
   .read =	do_sync_read,
-  .write =	do_sync_write,
+  .write = 	do_sync_write,
 #else
   .read =	afs_linux_read,
   .write =	afs_linux_write,
@@ -2417,6 +2417,9 @@ afs_linux_bypass_readpage(struct file *fp, struct page *pp)
 
 static inline int
 afs_linux_can_bypass(struct inode *ip) {
+    struct vcache *avc = VTOAFS(ip);
+    if (avc->execsOrWriters)
+	return 0;
 
     switch(cache_bypass_strategy) {
 	case NEVER_BYPASS_CACHE:
@@ -2424,7 +2427,7 @@ afs_linux_can_bypass(struct inode *ip) {
 	case ALWAYS_BYPASS_CACHE:
 	    return 1;
 	case LARGE_FILES_BYPASS_CACHE:
-	    if (i_size_read(ip) > cache_bypass_threshold)
+	    if (cache_bypass_threshold >= 0 && i_size_read(ip) > cache_bypass_threshold)
 		return 1;
 	default:
 	    return 0;
