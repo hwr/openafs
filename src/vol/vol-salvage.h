@@ -61,8 +61,8 @@ struct VolumeSummary {		/* Volume summary an entry for each
     byte wouldNeedCallback;	/* set if the file server should issue
 				 * call backs for all the files in this volume when
 				 * the volume goes back on line */
-    byte unused;                /* is this volume 'extra'? i.e. not referenced
-                                 * by anything? */
+    byte unused;		/* is this volume 'extra'? i.e. not referenced
+				 * by anything? */
 };
 
 struct VnodeInfo {
@@ -95,6 +95,11 @@ struct VnodeInfo {
 	int author;		/* File author */
 	int owner;		/* File owner */
 	int group;		/* File group */
+	union {
+	    struct OsdMetadata o;
+	    bit32 vnodemagic;	/* Magic number--mainly for file server
+				 * paranoia checks */
+	} u;
     } *vnodes;
 };
 
@@ -237,7 +242,8 @@ extern int SalvageHeader(struct SalvInfo *salvinfo, struct afs_inode_info *sp,
                         struct InodeSummary *isp, int check, int *deleteMe);
 extern int SalvageIndex(struct SalvInfo *salvinfo, Inode ino, VnodeClass class,
                         int RW, struct ViceInodeInfo *ip, int nInodes,
-                        struct VolumeSummary *volSummary, int check);
+                        struct VolumeSummary *volSummary, int check,
+			Inode osdMetadataInode);
 extern int SalvageVnodes(struct SalvInfo *salvinfo, struct InodeSummary *rwIsp,
                         struct InodeSummary *thisIsp,
                         struct ViceInodeInfo *inodes, int check);
