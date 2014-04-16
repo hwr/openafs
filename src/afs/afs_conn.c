@@ -1,7 +1,7 @@
 /*
  * Copyright 2000, International Business Machines Corporation and others.
  * All Rights Reserved.
- *
+ * 
  * This software has been released under the terms of the IBM Public
  * License.  For details, see the LICENSE file in the top-level source
  * directory or online at http://www.openafs.org/dl/license10.html
@@ -51,11 +51,11 @@ afs_int32 cryptall = 0;		/* encrypt all communications */
 /* a constructor */
 #define new_conn_vector(xcv) \
 do { \
-	xcv = (struct sa_conn_vector *) \
-	afs_osi_Alloc(sizeof(struct sa_conn_vector)); \
-	if (xcv) { \
-		memset((char *)xcv, 0, sizeof(struct sa_conn_vector)); \
-	} \
+        xcv = (struct sa_conn_vector *) \
+        afs_osi_Alloc(sizeof(struct sa_conn_vector)); \
+        if (xcv) { \
+                memset((char *)xcv, 0, sizeof(struct sa_conn_vector)); \
+        } \
 } while (0);
 
 /* select a connection to return (if no connection has lower utilization
@@ -149,23 +149,23 @@ release_conns_user_server(struct unixuser *xu, struct server *xs)
                     if (tc->activated) {
                         rx_SetConnSecondsUntilNatPing(tc->id, 0);
                         rx_DestroyConnection(tc->id);
-			/* find another eligible connection */
-			if (sa->natping == tc) {
-			    int cin;
-			    struct afs_conn *tcn;
-			    for (tcvn = sa->conns; tcvn; tcvn = tcvn->next) {
-				if (tcvn == tcv)
-				    continue;
-				for(cin = 0; cin < CVEC_LEN; ++cin) {
-				    tcn = &(tcvn->cvec[cin]);
-				    if (tcn->activated) {
-					rx_SetConnSecondsUntilNatPing(tcn->id, 20);
-					sa->natping = tcn;
-					break;
-				    }
-				}
-			    }
-			}
+                        /* find another eligible connection */
+                        if (sa->natping == tc) {
+                            int cin;
+                            struct afs_conn *tcn;
+                            for (tcvn = sa->conns; tcvn; tcvn = tcvn->next) {
+                                if (tcvn == tcv)
+                                    continue;
+                                for(cin = 0; cin < CVEC_LEN; ++cin) {
+                                    tcn = &(tcvn->cvec[cin]);
+                                    if (tcn->activated) {
+                                        rx_SetConnSecondsUntilNatPing(tcn->id, 20);
+                                        sa->natping = tcn;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
                 if (glocked)
@@ -198,8 +198,8 @@ release_conns_vector(struct sa_conn_vector *tcv)
             if (tc->activated) {
                 rx_SetConnSecondsUntilNatPing(tc->id, 0);
                 rx_DestroyConnection(tc->id);
-		if (tcv->srvr->natping == tc)
-		    tcv->srvr->natping = NULL;
+                if (tcv->srvr->natping == tc)
+                    tcv->srvr->natping = NULL;
             }
         }
         if (glocked)
@@ -235,19 +235,19 @@ afs_pickSecurityObject(struct afs_conn *conn, int *secLevel)
 
     /* Do we have tokens ? */
     if (conn->parent->user->states & UHasTokens) {
-	token = afs_FindToken(conn->parent->user->tokens, RX_SECIDX_KAD);
-	if (token) {
-	    *secLevel = RX_SECIDX_KAD;
-	    /* kerberos tickets on channel 2 */
-	    secObj = rxkad_NewClientSecurityObject(
-			 cryptall ? rxkad_crypt : rxkad_clear,
+        token = afs_FindToken(conn->parent->user->tokens, RX_SECIDX_KAD);
+        if (token) {
+            *secLevel = RX_SECIDX_KAD;
+	/* kerberos tickets on channel 2 */
+	secObj = rxkad_NewClientSecurityObject(
+		    cryptall ? rxkad_crypt : rxkad_clear,
                          (struct ktc_encryptionKey *)
-			       token->rxkad.clearToken.HandShakeKey,
-		         token->rxkad.clearToken.AuthHandle,
-		         token->rxkad.ticketLen, token->rxkad.ticket);
-	    /* We're going to use this token, so populate the viced */
-	    conn->parent->user->viceId = token->rxkad.clearToken.ViceId;
-	}
+                               token->rxkad.clearToken.HandShakeKey,
+                         token->rxkad.clearToken.AuthHandle,
+                         token->rxkad.ticketLen, token->rxkad.ticket);
+            /* We're going to use this token, so populate the viced */
+            conn->parent->user->viceId = token->rxkad.clearToken.ViceId;
+        }
      }
      if (secObj == NULL) {
 	*secLevel = 0;
@@ -262,14 +262,14 @@ afs_pickSecurityObject(struct afs_conn *conn, int *secLevel)
  * Try setting up a connection to the server containing the specified fid.
  * Gets the volume, checks if it's up and does the connection by server address.
  *
- * @param afid
+ * @param afid 
  * @param areq Request filled in by the caller.
  * @param locktype Type of lock that will be used.
  *
  * @return The conn struct, or NULL.
  */
 struct afs_conn *
-afs_Conn(struct VenusFid *afid, struct vrequest *areq,
+afs_ConnSrv(struct VenusFid *afid, struct vrequest *areq, afs_int32 service,
 	 afs_int32 locktype, struct rx_connection **rxconn)
 {
     u_short fsport = AFS_FSPORT;
@@ -320,7 +320,7 @@ afs_Conn(struct VenusFid *afid, struct vrequest *areq,
 	for (i = 0; i < AFS_MAXHOSTS && tv->serverHost[i]; i++) {
 	    if (tv->states & VRO)
 		replicated++;
-	    if (((areq->tokenError > 0)||(areq->idleError > 0))
+	    if (((areq->tokenError > 0)||(areq->idleError > 0)) 
 		&& (areq->skipserver[i] == 1))
 		continue;
 	    if (tv->status[i] != notbusy) {
@@ -353,8 +353,9 @@ afs_Conn(struct VenusFid *afid, struct vrequest *areq,
 
     if (lowp) {
 	tu = afs_GetUser(areq->uid, afid->Cell, SHARED_LOCK);
-	tconn = afs_ConnBySA(lowp, fsport, afid->Cell, tu, 0 /*!force */ ,
-			     1 /*create */ , locktype, replicated, rxconn);
+	tconn = afs_ConnBySAsrv(lowp, fsport, service, afid->Cell, tu,
+				0 /*!force */, 1 /*create */ , locktype,
+			        replicated, rxconn);
 
 	afs_PutUser(tu, SHARED_LOCK);
     }
@@ -362,6 +363,13 @@ afs_Conn(struct VenusFid *afid, struct vrequest *areq,
     return tconn;
 }				/*afs_Conn */
 
+
+struct afs_conn *
+afs_Conn(struct VenusFid *afid, struct vrequest *areq,
+	 afs_int32 locktype, struct rx_connection **rxconn)
+{
+    return afs_ConnSrv(afid, areq, 1 /* service id */, locktype, rxconn);
+}
 
 /**
  * Connects to a server by it's server address.
@@ -378,27 +386,31 @@ afs_Conn(struct VenusFid *afid, struct vrequest *areq,
  * @return The new connection.
  */
 struct afs_conn *
-afs_ConnBySA(struct srvAddr *sap, unsigned short aport, afs_int32 acell,
-	     struct unixuser *tu, int force_if_down, afs_int32 create,
-	     afs_int32 locktype, afs_int32 replicated,
-	     struct rx_connection **rxconn)
+afs_ConnBySAsrv(struct srvAddr *sap, unsigned short aport, afs_int32 service,
+		afs_int32 acell, struct unixuser *tu, int force_if_down,
+		afs_int32 create, afs_int32 locktype, afs_int32 replicated,
+		struct rx_connection **rxconn)
 {
     int glocked, foundvec;
     struct afs_conn *tc = NULL;
     struct sa_conn_vector *tcv = NULL;
-    struct rx_securityClass *csec; /*Security class object */
-    int isec; /*Security index */
-    int service;
+    struct rx_securityClass *csec;	/*Security class object */
+    int isec;			/*Security index */
     int isrep = (replicated > 0)?CONN_REPLICATED:0;
 
     *rxconn = NULL;
+
+    /* check for capability VICED_CAPABILITY_LIBAFSOSD if necessary */
+    if (aport == AFS_FSPORT && service != 1
+      && !(sap->server->capabilities & VICED_CAPABILITY_LIBAFSOSD))
+	return NULL;
 
     /* find cached connection */
     ObtainSharedLock(&afs_xconn, 15);
     foundvec = 0;
     for (tcv = sap->conns; tcv; tcv = tcv->next) {
-        if (tcv->user == tu && tcv->port == aport &&
-	    (isrep == (tcv->flags & CONN_REPLICATED))) {
+	if (tcv->user == tu && tcv->port == aport && tcv->serviceId == service &&
+            (isrep == (tcv->flags & CONN_REPLICATED))) {
             /* return most eligible conn */
             if (!foundvec)
                 foundvec = 1;
@@ -410,11 +422,11 @@ afs_ConnBySA(struct srvAddr *sap, unsigned short aport, afs_int32 acell,
     }
 
     if (!tc && !create) {
-        /* Not found and can't create a new one. */
-        ReleaseSharedLock(&afs_xconn);
-        return NULL;
+	/* Not found and can't create a new one. */
+	ReleaseSharedLock(&afs_xconn);
+	return NULL;
     }
-
+    
     if (AFS_IS_DISCONNECTED && !AFS_IN_SYNC) {
         afs_warnuser("afs_ConnBySA: disconnected\n");
         ReleaseSharedLock(&afs_xconn);
@@ -429,15 +441,16 @@ afs_ConnBySA(struct srvAddr *sap, unsigned short aport, afs_int32 acell,
 	 * gets set, marking the time of its ``birth''.
 	 */
 	UpgradeSToWLock(&afs_xconn, 37);
-        new_conn_vector(tcv);
+	new_conn_vector(tcv);
 
-        tcv->user = tu;
-        tcv->port = aport;
-        tcv->srvr = sap;
-        tcv->next = sap->conns;
+	tcv->user = tu;
+	tcv->port = aport;
+	tcv->serviceId = service;
+	tcv->srvr = sap;
+	tcv->next = sap->conns;
 	if (isrep)
 	    tcv->flags |= CONN_REPLICATED;
-        sap->conns = tcv;
+	sap->conns = tcv;
 
         /* all struct afs_conn ptrs come from here */
         tc = find_preferred_connection(tcv, create);
@@ -464,44 +477,34 @@ afs_ConnBySA(struct srvAddr *sap, unsigned short aport, afs_int32 acell,
 	if (tc->id && (rx_SecurityClassOf(tc->id) != 0)) {
 	    tc->forceConnectFS = 1;	/* force recreation of connection */
 	}
-	tu->states &= ~UHasTokens;      /* remove the authentication info */
+	tu->states &= ~UHasTokens;		/* remove the authentication info */
     }
 
     glocked = ISAFS_GLOCK();
     if (tc->forceConnectFS) {
 	UpgradeSToWLock(&afs_xconn, 38);
 	if (tc->id) {
-	    if (sap->natping == tc)
-		sap->natping = NULL;
-	    if (glocked)
-                AFS_GUNLOCK();
-            rx_SetConnSecondsUntilNatPing(tc->id, 0);
-            rx_DestroyConnection(tc->id);
-	    if (glocked)
-                AFS_GLOCK();
+            if (sap->natping == tc)
+                sap->natping = NULL;
+            if (glocked)
+	        AFS_GUNLOCK();
+	    rx_SetConnSecondsUntilNatPing(tc->id, 0);
+	    rx_DestroyConnection(tc->id);
+            if (glocked)
+	        AFS_GLOCK();
 	}
-	/*
-	 * Stupid hack to determine if using vldb service or file system
-	 * service.
-	 */
-	if (aport == sap->server->cell->vlport)
-	    service = 52;
-	else
-	    service = 1;
 	isec = 0;
-
 	csec = afs_pickSecurityObject(tc, &isec);
-
 	if (glocked)
-            AFS_GUNLOCK();
+	    AFS_GUNLOCK();
 	tc->id = rx_NewConnection(sap->sa_ip, aport, service, csec, isec);
 	if (glocked)
-            AFS_GLOCK();
+	    AFS_GLOCK();
 	if (service == 52) {
 	    rx_SetConnHardDeadTime(tc->id, afs_rx_harddead);
 	}
 
-        /* Setting idle dead time to non-zero activates RX_CALL_IDLE errors. */
+	/* Setting idle dead time to non-zero activates RX_CALL_IDLE errors. */
 	if (isrep)
 	    rx_SetConnIdleDeadTime(tc->id, afs_rx_idledead_rep);
 	else
@@ -510,10 +513,10 @@ afs_ConnBySA(struct srvAddr *sap, unsigned short aport, afs_int32 acell,
 	/*
 	 * Only do this for one connection
 	 */
-	if ((service != 52) && (sap->natping == NULL)) {
-	    sap->natping = tc;
-	    rx_SetConnSecondsUntilNatPing(tc->id, 20);
-	}
+        if ((service != 52) && (sap->natping == NULL)) {
+            sap->natping = tc;
+            rx_SetConnSecondsUntilNatPing(tc->id, 20);
+        }
 
 	tc->forceConnectFS = 0;	/* apparently we're appropriately connected now */
 	if (csec)
@@ -526,6 +529,27 @@ afs_ConnBySA(struct srvAddr *sap, unsigned short aport, afs_int32 acell,
 
     ReleaseSharedLock(&afs_xconn);
     return tc;
+}
+
+struct afs_conn *
+afs_ConnBySA(struct srvAddr *sap, unsigned short aport, afs_int32 acell,
+	     struct unixuser *tu, int force_if_down, afs_int32 create,
+	     afs_int32 locktype, afs_int32 replicated, struct rx_connection **rxconn)
+{
+    afs_int32 service;
+
+    /*
+     * Stupid hack to determine if using vldb service or file system
+     * service.
+     */
+    if (aport == sap->server->cell->vlport)
+	service = 52;
+    else if (aport == AFS_FSPORT)
+	service = 1;
+    else			/* Then it can presently only be a rxosd */
+	service = 900;
+    return afs_ConnBySAsrv(sap, aport, service, acell, tu, force_if_down,
+			  create, locktype, replicated, rxconn);
 }
 
 /**
@@ -546,9 +570,10 @@ afs_ConnBySA(struct srvAddr *sap, unsigned short aport, afs_int32 acell,
  * @return The established connection.
  */
 struct afs_conn *
-afs_ConnByHost(struct server *aserver, unsigned short aport, afs_int32 acell,
-	       struct vrequest *areq, int aforce, afs_int32 locktype,
-	       afs_int32 replicated, struct rx_connection **rxconn)
+afs_ConnByHostSrv(struct server *aserver, unsigned short aport, afs_int32 service,
+		  afs_int32 acell, struct vrequest *areq, int aforce,
+		  afs_int32 locktype, afs_int32 replicated,
+		  struct rx_connection **rxconn)
 {
     struct unixuser *tu;
     struct afs_conn *tc = NULL;
@@ -563,7 +588,7 @@ afs_ConnByHost(struct server *aserver, unsigned short aport, afs_int32 acell,
         return NULL;
     }
 
-/*
+/* 
   1.  look for an existing connection
   2.  create a connection at an address believed to be up
       (if aforce is true, create a connection at the first address)
@@ -572,7 +597,12 @@ afs_ConnByHost(struct server *aserver, unsigned short aport, afs_int32 acell,
     tu = afs_GetUser(areq->uid, acell, SHARED_LOCK);
 
     for (sa = aserver->addr; sa; sa = sa->next_sa) {
-	tc = afs_ConnBySA(sa, aport, acell, tu, aforce,
+	if (service)
+	    tc = afs_ConnBySAsrv(sa, aport, service, acell, tu, aforce,
+			  0 /*don't create one */ ,
+			  locktype, replicated, rxconn);
+	else
+	    tc = afs_ConnBySA(sa, aport, acell, tu, aforce,
 			  0 /*don't create one */ ,
 			  locktype, replicated, rxconn);
 	if (tc)
@@ -581,7 +611,12 @@ afs_ConnByHost(struct server *aserver, unsigned short aport, afs_int32 acell,
 
     if (!tc) {
 	for (sa = aserver->addr; sa; sa = sa->next_sa) {
-	    tc = afs_ConnBySA(sa, aport, acell, tu, aforce,
+	    if (service)
+	        tc = afs_ConnBySAsrv(sa, aport, service, acell, tu, aforce,
+			      1 /*create one */ ,
+			      locktype, replicated, rxconn);
+	    else
+	        tc = afs_ConnBySA(sa, aport, acell, tu, aforce,
 			      1 /*create one */ ,
 			      locktype, replicated, rxconn);
 	    if (tc)
@@ -594,6 +629,14 @@ afs_ConnByHost(struct server *aserver, unsigned short aport, afs_int32 acell,
 
 }				/*afs_ConnByHost */
 
+struct afs_conn *
+afs_ConnByHost(struct server *aserver, unsigned short aport, afs_int32 acell,
+	       struct vrequest *areq, int aforce, afs_int32 locktype,
+	       afs_int32 replicated, struct rx_connection **rxconn)
+{
+    return afs_ConnByHostSrv(aserver, aport, 0, acell, areq, aforce, locktype,
+			     replicated, rxconn);
+}
 
 /**
  * Connect by multiple hosts.
@@ -643,13 +686,13 @@ afs_ConnByMHosts(struct server *ahosts[], unsigned short aport,
  */
 void
 afs_PutConn(struct afs_conn *ac, struct rx_connection *rxconn,
-            afs_int32 locktype)
+	    afs_int32 locktype)
 {
     AFS_STATCNT(afs_PutConn);
     ac->refCount--;
     if (ac->refCount < 0) {
 	osi_Panic("afs_PutConn: refcount imbalance 0x%lx %d",
-	          (unsigned long)(uintptrsz)ac, (int)ac->refCount);
+		  (unsigned long)(uintptrsz)ac, (int)ac->refCount);
     }
     ac->parent->refCount--;
     rx_PutConnection(rxconn);
@@ -680,14 +723,14 @@ afs_ReleaseConnsUser(struct unixuser *au) {
     for (i = 0; i < NSERVERS; i++) {
         for (ts = afs_servers[i]; ts; ts = ts->next) {
             release_conns_user_server(au, ts);
-        }	/*For each server on chain */
+        }       /*For each server on chain */
     } /*For each chain */
 }
 
 
-/**
- * For multi homed clients, a RPC may timeout because of a
- * client network interface going down. We need to reopen new
+/** 
+ * For multi homed clients, a RPC may timeout because of a 
+ * client network interface going down. We need to reopen new 
  * connections in this case.
  *
  * @param sap Server address.
@@ -700,7 +743,7 @@ ForceNewConnections(struct srvAddr *sap)
     struct sa_conn_vector *tcv = NULL;
 
     if (!sap)
-	return; /* defensive check */
+	return;			/* defensive check */
 
     ObtainWriteLock(&afs_xconn, 413);
     for (tcv = sap->conns; tcv; tcv = tcv->next) {

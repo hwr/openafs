@@ -50,6 +50,9 @@
   *                <cache>/etc/AFSLog.
   *	-waitclose make close calls always synchronous (slows em down, tho)
   *	-files_per_subdir [n]	number of files per cache subdir. (def=2048)
+  *     -libafsosd initialize extensions for rxosd
+  *
+  *  Flags for afsd as command:
   *	-shutdown  Shutdown afs daemons
   *---------------------------------------------------------------------------*/
 
@@ -266,6 +269,7 @@ int afsd_debug = 0;		/*Are we printing debugging info? */
 static int afsd_CloseSynch = 0;	/*Are closes synchronous or not? */
 static int rxmaxmtu = 0;       /* Are we forcing a limit on the mtu? */
 static int rxmaxfrags = 0;      /* Are we forcing a limit on frags? */
+static int libafsosd = 0;	/* enable rxosd support. */
 
 #ifdef AFS_SGI62_ENV
 #define AFSD_INO_T ino64_t
@@ -343,6 +347,7 @@ enum optionsList {
     OPT_rxmaxmtu,
     OPT_dynrootsparse,
     OPT_rxmaxfrags,
+    OPT_libafsosd,
 };
 
 #ifdef MACOS_EVENT_HANDLING
@@ -407,7 +412,7 @@ afsd_update_addresses(CFRunLoopTimerRef timer, void *info)
 
     code = afsconf_ParseNetFiles(addrbuf, maskbuf, mtubuf, MAXIPADDRS,
 				 reason, AFSDIR_CLIENT_NETINFO_FILEPATH,
-				 AFSDIR_CLIENT_NETRESTRICT_FILEPATH);
+		      AFSDIR_CLIENT_NETRESTRICT_FILEPATH);
 
     if (code > 0) {
 	/* Note we're refreshing */
@@ -1876,6 +1881,11 @@ mainproc(struct cmd_syndesc *as, void *arock)
 
     cmd_OptionAsInt(as, OPT_rxmaxfrags, &rxmaxfrags);
 
+    if (cmd_OptionPresent(as, OPT_libafsosd)) {
+       libafsosd = 1;
+    }
+
+
     /* parse cacheinfo file if this is a diskcache */
     if (ParseCacheInfoFile()) {
 	exit(1);
@@ -2132,8 +2142,8 @@ afsd_run(void)
 	    mtubuf[MAXIPADDRS];
 	char reason[1024];
 	code = afsconf_ParseNetFiles(addrbuf, maskbuf, mtubuf, MAXIPADDRS, reason,
-				     AFSDIR_CLIENT_NETINFO_FILEPATH,
-				     AFSDIR_CLIENT_NETRESTRICT_FILEPATH);
+			  AFSDIR_CLIENT_NETINFO_FILEPATH,
+			  AFSDIR_CLIENT_NETRESTRICT_FILEPATH);
 	if (code > 0) {
 	    if (enable_rxbind)
 		code = code | 0x80000000;
@@ -2415,6 +2425,11 @@ afsd_run(void)
 	}
     }
     /*end for */
+
+    if (libafsosd) {
+	afsd_syscall(AFSOP_LIBAFSOSD);
+    }
+
     /*
      * All the necessary info has been passed into the kernel to run an AFS
      * system.  Give the kernel our go-ahead.
@@ -2443,9 +2458,9 @@ afsd_run(void)
 	if (afsd_verbose)
 	    printf("%s: Forking 'rmtsys' daemon.\n", rn);
 	afsd_fork(0, rmtsysd_thread, NULL);
-	code = afsd_syscall(AFSOP_SET_RMTSYS_FLAG, 1);
-	if (code)
-	    printf("%s: Error enabling rmtsys support.\n", rn);
+        code = afsd_syscall(AFSOP_SET_RMTSYS_FLAG, 1);
+        if (code)
+            printf("%s: Error enabling rmtsys support.\n", rn);
     }
 #endif /* !UKERNEL */
     /*
@@ -2555,6 +2570,8 @@ afsd_init(void)
 			CMD_OPTIONAL,
 			"Set the maximum number of UDP fragments Rx should "
 			"send/receive per Rx packet");
+    cmd_AddParmAtOffset(ts, OPT_libafsosd, "-libafsosd", CMD_FLAG,
+                       CMD_OPTIONAL, "Initialize rxosd support");
 }
 
 int
@@ -2607,6 +2624,7 @@ afsd_syscall_populate(struct afsd_syscall_args *args, int syscall, va_list ap)
     case AFSOP_START_AFS:
     case AFSOP_START_CS:
     case AFSOP_START_TRUNCDAEMON:
+    case AFSOP_LIBAFSOSD:
 	break;
     case AFSOP_START_BKG:
     case AFSOP_SHUTDOWN:
