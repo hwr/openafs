@@ -185,12 +185,19 @@ struct partList {		/*used by the backup system */
 #define RV_NODEL        0x100000
 #define RV_RWONLY	0x200000
 
+/* Values for DumpVolume flag */
+#define FORCEDUMP               1
+#define TARGETHASOSDSUPPORT     2
+#define FORCEMETADATA           4
+#define METADATADUMP            8
+#define INITIAL                 0x8000
+
 struct ubik_client;
 extern afs_uint32 vsu_GetVolumeID(char *astring, struct ubik_client *acstruct, afs_int32 *errp);
 extern int vsu_ExtractName(char rname[], char name[]);
-extern afs_int32 vsu_ClientInit(const char *confDir, char *cellName,
-				int secFlags,
-				int (*secproc)(struct rx_securityClass *,
-					       afs_int32),
-				struct ubik_client **uclientp);
+extern afs_int32 vsu_ClientInit(const char *confDir, char *cellName,                    
+                                int secFlags,                                            
+                                int (*secproc)(struct rx_securityClass *,                
+                                               afs_int32),                               
+                                struct ubik_client **uclientp);
 #endif /* _VOLSER_ */

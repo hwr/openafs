@@ -21,7 +21,6 @@
 #include <afs/param.h>
 
 #include <roken.h>
-#include <afs/opr.h>
 
 #include <ctype.h>
 
@@ -87,7 +86,7 @@ ListViceInodes(char *devname, char *mountedOn, FD_t inodeFile,
 #endif /* AFS_SGI_ENV */
 #include <afs/osi_inode.h>
 #include <sys/file.h>
-#include <rx/xdr.h>
+#include <afs/opr.h>
 #include <afs/afsint.h>
 #include "nfs.h"
 #include <afs/afssyscalls.h>
@@ -161,7 +160,7 @@ struct dinode *ginode();
 
 int
 ListViceInodes(char *devname, char *mountedOn, FD_t inodeFile,
-	       int (*judgeInode) (), VolumeId judgeParam, int *forcep, int forceR,
+	       int (*judgeInode) (), volumeId judgeParam, int *forcep, int forceR,
 	       char *wpath, void *rock)
 {
     char dev[50], rdev[51];
@@ -795,7 +794,7 @@ xfs_ListViceInodes(char *devname, char *mountedOn, FD_t inodeFile,
 
 int
 ListViceInodes(char *devname, char *mountedOn, FD_t inodeFile,
-	       int (*judgeInode) (), VolumeId judgeParam, int *forcep, int forceR,
+	       int (*judgeInode) (), VoluemId judgeParam, int *forcep, int forceR,
 	       char *wpath, void *rock)
 {
     char dev[50], rdev[51];
@@ -1246,7 +1245,7 @@ bread(FD_t fd, char *buf, daddr_t blk, afs_int32 size)
 
 #endif /* AFS_LINUX20_ENV */
 static afs_int32
-convertVolumeInfo(FdHandle_t *fdhr, FdHandle_t *fdhw, VolumeId vid)
+convertVolumeInfo(FdHandle_t *fdhr, FdHandle_t *fdhw, afs_uint32 vid, int osdSeen)
 {
     struct VolumeDiskData vd;
     char *p;
@@ -1256,6 +1255,10 @@ convertVolumeInfo(FdHandle_t *fdhr, FdHandle_t *fdhw, VolumeId vid)
         Log("1 convertiVolumeInfo: read failed for %lu with code %d\n", vid,
             errno);
         return -1;
+    }
+    if (vd.osdPolicy && !osdSeen) {
+	Log("1 convertiVolumeInfo: osd volume %lu without metadata filed\n", vid);
+	return -1;
     }
     vd.restoredFromId = vd.id;  /* remember the RO volume here */
     vd.cloneId = vd.id;
@@ -1334,7 +1337,7 @@ getDevName(char *pbuffer, char *wpath)
 
 #ifdef FSSYNC_BUILD_CLIENT
 int
-inode_ConvertROtoRWvolume(char *pname, VolumeId volumeId)
+inode_ConvertROtoRWvolume(char *pname, afs_uint32 volumeId)
 {
     char dir_name[512], oldpath[512], newpath[512];
     char volname[20];

@@ -30,7 +30,7 @@ VOLOBJS= vnode.o volume.o vutil.o partition.o fssync-client.o purge.o \
 	 clone.o devname.o common.o ihandle.o listinodes.o \
 	 namei_ops.o nuke.o salvsync-client.o daemon_com.o
 
-objects= ${VOLSEROBJS} ${DIROBJS} ${VOLOBJS}
+objects= ${VOLSEROBJS} ${DIROBJS} ${VOLOBJS} libafsosd.o
 
 vosobjects= ${VLSERVEROBJS} ${DIROBJS} ${VOLOBJS}
 
@@ -175,7 +175,7 @@ vos: vos.o  ${VOSOBJS} ${VLSERVEROBJS} $(LIBS_client)
 
 volserver: ${objects} $(LIBS_server)
 	$(LT_LDRULE_static) ${objects} $(LIBS_server) \
-		$(LIB_hcrypto) $(LIB_roken) ${MT_LIBS} ${XLIBS}
+		$(LIB_hcrypto) $(LIB_roken) ${MT_LIBS} ${XLIBS} -ldl
 
 install: volserver
 	${INSTALL} -d ${DESTDIR}${afssrvlibexecdir}
