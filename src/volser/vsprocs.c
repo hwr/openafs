@@ -444,6 +444,16 @@ UV_Bind(afs_uint32 aserver, afs_int32 port)
     return tc;
 }
 
+struct rx_connection *
+UV_BindOsd(afs_uint32 aserver, afs_int32 port)
+{
+    struct rx_connection *tc;
+
+    tc = rx_NewConnection(aserver, htons(port), 7, uvclass,
+                          uvindex);
+    return tc;
+}
+
 static int
 AFSVolCreateVolume_retry(struct rx_connection *z_conn,
 		       afs_int32 partition, char *name, afs_int32 type,
@@ -708,7 +718,7 @@ UV_CreateVolume2(afs_uint32 aserver, afs_int32 apart, char *aname,
 int
 UV_CreateVolume3(afs_uint32 aserver, afs_int32 apart, char *aname,
 		 afs_int32 aquota, afs_int32 aspare1, afs_int32 aspare2,
-		 afs_int32 aspare3, afs_int32 aspare4, afs_uint32 * anewid,
+		 afs_int32 osdPolicy, afs_int32 filequota, afs_uint32 * anewid,
 		 afs_uint32 * aroid, afs_uint32 * abkid)
 {
     struct rx_connection *aconn;
@@ -725,6 +735,8 @@ UV_CreateVolume3(afs_uint32 aserver, afs_int32 apart, char *aname,
 
     init_volintInfo(&tstatus);
     tstatus.maxquota = aquota;
+    tstatus.osdPolicy = osdPolicy;
+    tstatus.filequota = filequota;
 
     aconn = UV_Bind(aserver, AFSCONF_VOLUMEPORT);
 
