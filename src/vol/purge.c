@@ -1,7 +1,7 @@
 /*
  * Copyright 2000, International Business Machines Corporation and others.
  * All Rights Reserved.
- *
+ * 
  * This software has been released under the terms of the IBM Public
  * License.  For details, see the LICENSE file in the top-level source
  * directory or online at http://www.openafs.org/dl/license10.html
@@ -42,10 +42,11 @@
 #include "daemon_com.h"
 #include "fssync.h"
 #include "common.h"
+#include "../rxosd/afsosd.h"
 
 /* forward declarations */
 static int ObliterateRegion(Volume * avp, VnodeClass aclass, StreamHandle_t * afile,
-			    afs_foff_t * aoffset);
+				afs_foff_t * aoffset);
 #if 0
 static void PurgeIndex(Volume * vp, VnodeClass class);
 static void PurgeHeader(Volume * vp);
@@ -110,6 +111,8 @@ ObliterateRegion(Volume * avp, VnodeClass aclass, StreamHandle_t * afile,
     int i;
     afs_int32 code;
     struct VnodeDiskObject *vnode = (struct VnodeDiskObject *)buf;
+    void *afsosdrock = NULL;
+    afs_uint32 vN;
 
     hitEOF = 0;
     vcp = &VnodeClassInfo[aclass];
@@ -127,16 +130,19 @@ ObliterateRegion(Volume * avp, VnodeClass aclass, StreamHandle_t * afile,
 	}
 	code = STREAM_READ(vnode, vcp->diskSize, 1, afile);
 	nscanned++;
+	vN = (offset >> (vcp->logSize -1)) + 1 - aclass;
 	offset += vcp->diskSize;
 	if (code != 1) {
 	    hitEOF = 1;
 	    break;
 	}
 	if (vnode->type != vNull) {
-	    if (vnode->vnodeMagic != vcp->magic)
+	    if (!osdvol && vnode->vnodeMagic != vcp->magic)
 		goto fail;	/* something really wrong; let salvager take care of it */
 	    if (VNDISK_GET_INO(vnode))
 		inodes[iindex++] = VNDISK_GET_INO(vnode);
+	    if (vnode->type == vFile && osdvol)
+		(osdvol->op_purge_add_to_list)(avp, vnode, vN, &afsosdrock);
 	}
     }
 
@@ -155,6 +161,10 @@ ObliterateRegion(Volume * avp, VnodeClass aclass, StreamHandle_t * afile,
 	IH_DEC(V_linkHandle(avp), inodes[i], V_parentId(avp));
 	DOPOLL;
     }
+    IH_CONDSYNC(V_linkHandle(avp));
+
+    if (osdvol)
+	(osdvol->op_purge_clean_up)(&afsosdrock);
 
     /* return the new offset */
     *aoffset = offset;
@@ -221,6 +231,8 @@ PurgeHeader_r(Volume * vp)
     IH_DEC(V_linkHandle(vp), vp->vnodeIndex[vLarge].handle->ih_ino, V_id(vp));
     IH_DEC(V_linkHandle(vp), vp->vnodeIndex[vSmall].handle->ih_ino, V_id(vp));
     IH_DEC(V_linkHandle(vp), vp->diskDataHandle->ih_ino, V_id(vp));
+    if (vp->osdMetadataHandle)
+	IH_DEC(V_linkHandle(vp), vp->osdMetadataHandle->ih_ino, V_id(vp));
 #ifdef AFS_NAMEI_ENV
     /* And last, but not least, the link count table itself. */
     IH_REALLYCLOSE(V_linkHandle(vp));

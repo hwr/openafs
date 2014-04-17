@@ -56,6 +56,11 @@
 #include "volser_internal.h"
 #include "physio.h"
 #include "dumpstuff.h"
+#define BUILDING_VOLSERVER	1
+#include "../rxosd/afsosd.h"
+
+struct osd_volser_ops_v0 *osdvolser = NULL;
+extern afs_int32 convertToOsd;
 
 extern int DoLogging;
 extern struct afsconf_dir *tdir;
@@ -395,7 +400,8 @@ ViceCreateRoot(Volume *vp)
     vnode->author = 0;
     vnode->owner = 0;
     vnode->parent = 0;
-    vnode->vnodeMagic = vcp->magic;
+    if (!osdvol || !(V_osdPolicy(vp)))
+        vnode->vnodeMagic = vcp->magic;
 
     IH_INIT(h, vp->device, V_parentId(vp),
 	    vp->vnodeIndex[vLarge].handle->ih_ino);
@@ -604,6 +610,7 @@ VolCreateVolume(struct rx_call *acid, afs_int32 apart, char *aname,
     V_destroyMe(vp) = DESTROY_ME;
     V_inService(vp) = 0;
     V_maxquota(vp) = 5000;	/* set a quota of 5000 at init time */
+    V_filecount(vp) = 1;	/* root directory */
     VUpdateVolume(&error, vp);
     if (error) {
 	Log("1 Volser: create UpdateVolume failed, code %d\n", error);
@@ -1272,6 +1279,7 @@ VolForward(struct rx_call *acid, afs_int32 fromTrans, afs_int32 fromDate,
     struct rx_securityClass *securityObject;
     afs_int32 securityIndex;
     char caller[MAXKTCNAMELEN];
+    int flag = 0;
 
     if (!afsconf_SuperUser(tdir, acid, caller))
 	return VOLSERBAD_ACCESS;	/*not a super user */
@@ -1295,6 +1303,14 @@ VolForward(struct rx_call *acid, afs_int32 fromTrans, afs_int32 fromDate,
 	return code;
     }
 
+    if (osdvol && V_osdPolicy(vp)) {
+	afs_int32 has_it = 0;
+	code = (osdvol->op_check_for_osd_support)(destination, securityObject,
+					       securityIndex, &has_it);
+	if (!code && has_it)
+	    flag = TARGETHASOSDSUPPORT;
+    }
+
     /* make an rpc connection to the other server */
     tcon =
 	rx_NewConnection(htonl(destination->destHost),
@@ -1314,7 +1330,7 @@ VolForward(struct rx_call *acid, afs_int32 fromTrans, afs_int32 fromDate,
     }
 
     /* these next calls implictly call rx_Write when writing out data */
-    code = DumpVolume(tcall, vp, fromDate, 0);	/* last field = don't dump all dirs */
+    code = DumpVolume(tcall, vp, fromDate, flag);
     if (code)
 	goto fail;
     EndAFSVolRestore(tcall);	/* probably doesn't do much */
@@ -1365,6 +1381,7 @@ SAFSVolForwardMultiple(struct rx_call *acid, afs_int32 fromTrans, afs_int32
     struct rx_call **tcalls;
     struct Volume *vp;
     int i, is_incremental;
+    int flag = INITIAL;
 
     if (results) {
 	memset(results, 0, sizeof(manyResults));
@@ -1385,6 +1402,8 @@ SAFSVolForwardMultiple(struct rx_call *acid, afs_int32 fromTrans, afs_int32
 	return ENOENT;
     }
     vp = tt->volume;
+    if (osdvol && V_osdPolicy(vp))
+	flag |= TARGETHASOSDSUPPORT;
     TSetRxCall(tt, NULL, "ForwardMulti");
 
     /* (fromDate == 0) ==> full dump */
@@ -1433,7 +1452,7 @@ SAFSVolForwardMultiple(struct rx_call *acid, afs_int32 fromTrans, afs_int32
     }
 
     /* these next calls implictly call rx_Write when writing out data */
-    code = DumpVolMulti(tcalls, i, vp, fromDate, 0, codes);
+    code = DumpVolMulti(tcalls, i, vp, fromDate, flag, codes);
 
 
   fail:
@@ -1496,6 +1515,14 @@ VolDump(struct rx_call *acid, afs_int32 fromTrans, afs_int32 fromDate,
     int code = 0;
     struct volser_trans *tt;
     char caller[MAXKTCNAMELEN];
+    int flag = 0;
+
+    if (flags & VOLDUMPV2_OSDMETADATA)
+        flag |= TARGETHASOSDSUPPORT;
+    if (flags & VOLDUMPV2_METADATADUMP)
+        flag |= METADATADUMP;
+    if (!(flags & VOLDUMPV2_OMITDIRS))
+        flag |= FORCEDUMP;
 
     if (!afsconf_SuperUser(tdir, acid, caller))
 	return VOLSERBAD_ACCESS;	/*not a super user */
@@ -1508,8 +1535,7 @@ VolDump(struct rx_call *acid, afs_int32 fromTrans, afs_int32 fromDate,
 	return ENOENT;
     }
     TSetRxCall(tt, acid, "Dump");
-    code = DumpVolume(acid, tt->volume, fromDate, (flags & VOLDUMPV2_OMITDIRS)
-		      ? 0 : 1);	/* squirt out the volume's data, too */
+    code = DumpVolume(acid, tt->volume, fromDate, flag);
     if (code) {
         TClearRxCall(tt);
 	TRELE(tt);
@@ -1556,9 +1582,9 @@ VolRestore(struct rx_call *acid, afs_int32 atrans, afs_int32 aflags,
 	return ENOENT;
     }
     if (DoLogging) {
-	char buffer[16];
-	Log("%s on %s is executing Restore %" AFS_VOLID_FMT "\n", caller,
-	    callerAddress(acid, buffer), afs_printable_VolumeId_lu(tt->volid));
+        char buffer[16];
+        Log("%s on %s is executing Restore %" AFS_VOLID_FMT "\n", caller,
+            callerAddress(acid, buffer), afs_printable_VolumeId_lu(tt->volid));
     }
     TSetRxCall(tt, acid, "Restore");
 
@@ -1724,7 +1750,7 @@ VolSetInfo(struct rx_call *acid, afs_int32 atrans,
     struct VolumeDiskData *td;
     struct volser_trans *tt;
     char caller[MAXKTCNAMELEN];
-    Error error;
+    Error error, code = 0;
 
     if (!afsconf_SuperUser(tdir, acid, caller))
 	return VOLSERBAD_ACCESS;	/*not a super user */
@@ -1758,7 +1784,18 @@ VolSetInfo(struct rx_call *acid, afs_int32 atrans,
 	td->updateDate = astatus->updateDate;
     if (astatus->spare2 != -1)
 	td->volUpdateCounter = (unsigned int)astatus->spare2;
+    if (astatus->filequota > 0)
+        td->maxfiles = astatus->filequota;
+    if (astatus->osdPolicy != -1) {
+        if (osdvol) {
+            code = (osdvol->op_setOsdPolicy)(tv, astatus->osdPolicy);
+        } else if (astatus->osdPolicy != 0) {
+            code = EINVAL;
+        }
+    }
     VUpdateVolume(&error, tv);
+    if (code && !error)
+        error = code;
     TClearRxCall(tt);
     if (TRELE(tt))
 	return VOLSERTRELE_ERROR;
@@ -2395,16 +2432,16 @@ VolListOneVolume(struct rx_call *acid, afs_int32 partid,
 	handle.volinfo_type = VOLINT_INFO_TYPE_BASE;
 	handle.volinfo_ptr.base = volumeInfo->volEntries_val;
 
-	/* The return code from GetVolInfo is ignored; there is no error from
-	 * it that results in the whole call being aborted. Any volume
-	 * attachment failures are reported in 'status' field in the
-	 * volumeInfo payload. */
+        /* The return code from GetVolInfo is ignored; there is no error from
+         * it that results in the whole call being aborted. Any volume
+         * attachment failures are reported in 'status' field in the
+         * volumeInfo payload. */
 	GetVolInfo(partid,
-	           volid,
-	           pname,
-	           volname,
-	           &handle,
-	           VOL_INFO_LIST_SINGLE);
+			  volid,
+			  pname,
+			  volname,
+			  &handle,
+			  VOL_INFO_LIST_SINGLE);
     }
 
     closedir(dirp);
@@ -2512,16 +2549,16 @@ VolXListOneVolume(struct rx_call *a_rxCidP, afs_int32 a_partID,
 	handle.volinfo_type = VOLINT_INFO_TYPE_EXT;
 	handle.volinfo_ptr.ext = a_volumeXInfoP->volXEntries_val;
 
-	/* The return code from GetVolInfo is ignored; there is no error from
-	 * it that results in the whole call being aborted. Any volume
-	 * attachment failures are reported in 'status' field in the
-	 * volumeInfo payload. */
-	GetVolInfo(a_partID,
-	           a_volID,
-	           pname,
-	           volname,
-	           &handle,
-	           VOL_INFO_LIST_SINGLE);
+        /* The return code from GetVolInfo is ignored; there is no error from
+         * it that results in the whole call being aborted. Any volume
+         * attachment failures are reported in 'status' field in the
+         * volumeInfo payload. */
+        GetVolInfo(a_partID,
+                   a_volID,
+                   pname,
+                   volname,
+                   &handle,
+                   VOL_INFO_LIST_SINGLE);
     }
 
     /*
@@ -3022,6 +3059,7 @@ SAFSVolGetSize(struct rx_call *acid, afs_int32 fromTrans, afs_int32 fromDate,
     int code = 0;
     struct volser_trans *tt;
     char caller[MAXKTCNAMELEN];
+    int flag = FORCEDUMP | TARGETHASOSDSUPPORT;
 
     if (!afsconf_SuperUser(tdir, acid, caller))
 	return VOLSERBAD_ACCESS;	/*not a super user */
@@ -3033,7 +3071,7 @@ SAFSVolGetSize(struct rx_call *acid, afs_int32 fromTrans, afs_int32 fromDate,
 	return ENOENT;
     }
     TSetRxCall(tt, acid, "GetSize");
-    code = SizeDumpVolume(acid, tt->volume, fromDate, 1, size);	/* measure volume's data */
+    code = SizeDumpVolume(acid, tt->volume, fromDate, flag, size);	/* measure volume's data */
     TClearRxCall(tt);
     if (TRELE(tt))
 	return VOLSERTRELE_ERROR;
@@ -3155,3 +3193,19 @@ GetPartName(afs_int32 partid, char *pname)
     } else
 	return -1;
 }
+
+extern int VInit;
+extern afsUUID FS_HostUUID;
+
+struct vol_data_v0 vol_data_v0 = {
+    &tdir,
+    &LogLevel,
+    &VInit,
+    VnodeClassInfo,
+    &FS_HostUUID,
+    &rx_enable_stats
+};
+
+struct volser_data_v0 volser_data_v0 = {
+    &convertToOsd
+};

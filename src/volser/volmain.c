@@ -52,6 +52,13 @@
 #include "volint.h"
 #include "volser_internal.h"
 
+#define BUILDING_VOLSERVER	1
+#include "../rxosd/afsosd.h"
+afs_int32 convertToOsd = 0;
+#ifdef AFS_PTHREAD_ENV
+int libafsosd = 0;
+#endif
+
 #define VolserVersion "2.0"
 #define N_SECURITY_OBJECTS 3
 
@@ -75,7 +82,7 @@ int restrictedQueryLevel = RESTRICTED_QUERY_ANYUSER;
 int rxBind = 0;
 int rxkadDisableDotCheck = 0;
 int DoPreserveVolumeStats = 0;
-int rxJumbograms = 0;	/* default is to not send and receive jumbograms. */
+int rxJumbograms = 0;   /* default is to not send and receive jumbograms. */
 int rxMaxMTU = -1;
 char *auditFileName = NULL;
 char *logFile = NULL;
@@ -205,14 +212,14 @@ static int
 vol_IsLocalRealmMatch(void *rock, char *name, char *inst, char *cell)
 {
     struct afsconf_dir *dir = (struct afsconf_dir *)rock;
-    afs_int32 islocal = 0;	/* default to no */
+    afs_int32 islocal = 0;     /* default to no */
     int code;
 
     code = afsconf_IsLocalRealmMatch(dir, &islocal, name, inst, cell);
     if (code) {
 	ViceLog(0,
 		("Failed local realm check; code=%d, name=%s, inst=%s, cell=%s\n",
-		 code, name, inst, cell));
+		code, name, inst, cell));
     }
     return islocal;
 }
@@ -238,6 +245,8 @@ enum optionsList {
     OPT_logfile,
     OPT_config,
     OPT_restricted_query
+    OPT_libafsosd,
+    OPT_convert
 };
 
 static int
@@ -252,54 +261,60 @@ ParseArgs(int argc, char **argv) {
 
     opts = cmd_CreateSyntax(NULL, NULL, NULL, NULL);
     cmd_AddParmAtOffset(opts, OPT_log, "-log", CMD_FLAG, CMD_OPTIONAL,
-	   "log vos users");
+           "log vos users");
     cmd_AddParmAtOffset(opts, OPT_rxbind, "-rxbind", CMD_FLAG, CMD_OPTIONAL,
-	   "bind only to the primary interface");
+           "bind only to the primary interface");
     cmd_AddParmAtOffset(opts, OPT_dotted, "-allow-dotted-principals", CMD_FLAG, CMD_OPTIONAL,
-	   "permit Kerberos 5 principals with dots");
+           "permit Kerberos 5 principals with dots");
     cmd_AddParmAtOffset(opts, OPT_debug, "-d", CMD_SINGLE, CMD_OPTIONAL,
-	   "debug level");
+           "debug level");
     cmd_AddParmAtOffset(opts, OPT_threads, "-p", CMD_SINGLE, CMD_OPTIONAL,
-	   "number of threads");
+           "number of threads");
     cmd_AddParmAtOffset(opts, OPT_auditlog, "-auditlog", CMD_SINGLE,
-	   CMD_OPTIONAL, "location of audit log");
+           CMD_OPTIONAL, "location of audit log");
     cmd_AddParmAtOffset(opts, OPT_audit_interface, "-audit-interface",
-	   CMD_SINGLE, CMD_OPTIONAL, "interface to use for audit logging");
+           CMD_SINGLE, CMD_OPTIONAL, "interface to use for audit logging");
     cmd_AddParmAtOffset(opts, OPT_nojumbo, "-nojumbo", CMD_FLAG, CMD_OPTIONAL,
-	    "disable jumbograms");
+            "disable jumbograms");
     cmd_AddParmAtOffset(opts, OPT_jumbo, "-jumbo", CMD_FLAG, CMD_OPTIONAL,
-	    "enable jumbograms");
+            "enable jumbograms");
     cmd_AddParmAtOffset(opts, OPT_rxmaxmtu, "-rxmaxmtu", CMD_SINGLE,
-	    CMD_OPTIONAL, "maximum MTU for RX");
+            CMD_OPTIONAL, "maximum MTU for RX");
     cmd_AddParmAtOffset(opts, OPT_udpsize, "-udpsize", CMD_SINGLE,
-	    CMD_OPTIONAL, "size of socket buffer in bytes");
+            CMD_OPTIONAL, "size of socket buffer in bytes");
     cmd_AddParmAtOffset(opts, OPT_sleep, "-sleep", CMD_SINGLE,
-	    CMD_OPTIONAL, "make background daemon sleep (LWP only)");
+            CMD_OPTIONAL, "make background daemon sleep (LWP only)");
     cmd_AddParmAtOffset(opts, OPT_peer, "-enable_peer_stats", CMD_FLAG,
-	    CMD_OPTIONAL, "enable RX transport statistics");
+            CMD_OPTIONAL, "enable RX transport statistics");
     cmd_AddParmAtOffset(opts, OPT_process, "-enable_process_stats", CMD_FLAG,
-	    CMD_OPTIONAL, "enable RX RPC statistics");
+            CMD_OPTIONAL, "enable RX RPC statistics");
     cmd_AddParmAtOffset(opts, OPT_preserve_vol_stats, "-preserve-vol-stats", CMD_FLAG,
-	    CMD_OPTIONAL, "preserve volume statistics");
+            CMD_OPTIONAL, "preserve volume statistics");
 #if !defined(AFS_NT40_ENV)
     cmd_AddParmAtOffset(opts, OPT_syslog, "-syslog", CMD_SINGLE_OR_FLAG,
-	    CMD_OPTIONAL, "log to syslog");
+            CMD_OPTIONAL, "log to syslog");
 #endif
     cmd_AddParmAtOffset(opts, OPT_sync, "-sync",
-	    CMD_SINGLE, CMD_OPTIONAL, "always | onclose | never");
+            CMD_SINGLE, CMD_OPTIONAL, "always | onclose | never");
     cmd_AddParmAtOffset(opts, OPT_logfile, "-logfile", CMD_SINGLE,
-	   CMD_OPTIONAL, "location of log file");
+           CMD_OPTIONAL, "location of log file");
     cmd_AddParmAtOffset(opts, OPT_config, "-config", CMD_SINGLE,
 	   CMD_OPTIONAL, "configuration location");
     cmd_AddParmAtOffset(opts, OPT_restricted_query, "-restricted_query",
 	    CMD_SINGLE, CMD_OPTIONAL, "anyuser | admin");
+#ifdef AFS_PTHREAD_ENV
+    cmd_AddParmAtOffset(opts, OPT_libafsosd, "-libafsosd", CMD_FLAG,
+           CMD_OPTIONAL, "load shared library for RXOSD support");
+    cmd_AddParmAtOffset(opts, OPT_convert, "-convert", CMD_FLAG,
+           CMD_OPTIONAL, "convert during volume restore large files to OSD files");
+#endif
 
     code = cmd_Parse(argc, argv, &opts);
     if (code == CMD_HELP) {
 	exit(0);
     }
     if (code)
-	return 1;
+        return 1;
 
     cmd_OptionAsFlag(opts, OPT_log, &DoLogging);
     cmd_OptionAsFlag(opts, OPT_rxbind, &rxBind);
@@ -307,51 +322,51 @@ ParseArgs(int argc, char **argv) {
     cmd_OptionAsFlag(opts, OPT_preserve_vol_stats, &DoPreserveVolumeStats);
     cmd_OptionAsInt(opts, OPT_debug, &LogLevel);
     if (cmd_OptionPresent(opts, OPT_peer))
-	rx_enablePeerRPCStats();
+        rx_enablePeerRPCStats();
     if (cmd_OptionPresent(opts, OPT_process))
-	rx_enableProcessRPCStats();
+        rx_enableProcessRPCStats();
     if (cmd_OptionPresent(opts, OPT_nojumbo))
-	rxJumbograms = 0;
+        rxJumbograms = 0;
     if (cmd_OptionPresent(opts, OPT_jumbo))
-	rxJumbograms = 1;
+        rxJumbograms = 1;
 #ifndef AFS_NT40_ENV
     if (cmd_OptionPresent(opts, OPT_syslog)) {
-	serverLogSyslog = 1;
-	cmd_OptionAsInt(opts, OPT_syslog, &serverLogSyslogFacility);
+        serverLogSyslog = 1;
+        cmd_OptionAsInt(opts, OPT_syslog, &serverLogSyslogFacility);
     }
 #endif
     cmd_OptionAsInt(opts, OPT_rxmaxmtu, &rxMaxMTU);
     if (cmd_OptionAsInt(opts, OPT_udpsize, &optval) == 0) {
-	if (optval < rx_GetMinUdpBufSize()) {
-	    printf("Warning:udpsize %d is less than minimum %d; ignoring\n",
-		    optval, rx_GetMinUdpBufSize());
-	} else
-	    udpBufSize = optval;
+        if (optval < rx_GetMinUdpBufSize()) {
+            printf("Warning:udpsize %d is less than minimum %d; ignoring\n",
+                    optval, rx_GetMinUdpBufSize());
+        } else
+            udpBufSize = optval;
     }
     cmd_OptionAsString(opts, OPT_auditlog, &auditFileName);
 
     if (cmd_OptionAsString(opts, OPT_audit_interface, &optstring) == 0) {
-	if (osi_audit_interface(optstring)) {
-	    printf("Invalid audit interface '%s'\n", optstring);
-	    return -1;
-	}
-	free(optstring);
-	optstring = NULL;
+        if (osi_audit_interface(optstring)) {
+            printf("Invalid audit interface '%s'\n", optstring);
+            return -1;
+        }
+        free(optstring);
+        optstring = NULL;
     }
     if (cmd_OptionAsInt(opts, OPT_threads, &lwps) == 0) {
-	if (lwps > MAXLWP) {
-	    printf("Warning: '-p %d' is too big; using %d instead\n", lwps, MAXLWP);
-	    lwps = MAXLWP;
-	}
+        if (lwps > MAXLWP) {
+            printf("Warning: '-p %d' is too big; using %d instead\n", lwps, MAXLWP);
+            lwps = MAXLWP;
+        }
     }
     if (cmd_OptionAsString(opts, OPT_sleep, &sleepSpec) == 0) {
 	printf("Warning: -sleep option ignored; this option is obsolete\n");
     }
     if (cmd_OptionAsString(opts, OPT_sync, &sync_behavior) == 0) {
-	if (ih_SetSyncBehavior(sync_behavior)) {
-	    printf("Invalid -sync value %s\n", sync_behavior);
-	    return -1;
-	}
+        if (ih_SetSyncBehavior(sync_behavior)) {
+            printf("Invalid -sync value %s\n", sync_behavior);
+            return -1;
+        }
     }
     cmd_OptionAsString(opts, OPT_logfile, &logFile);
     cmd_OptionAsString(opts, OPT_config, &configDir);
@@ -368,6 +383,12 @@ ParseArgs(int argc, char **argv) {
 	}
 	free(restricted_query_parameter);
     }
+#ifdef AFS_PTHREAD_ENV
+    if (cmd_OptionPresent(opts, OPT_libafsosd))
+        libafsosd = 1;
+    if (cmd_OptionPresent(opts, OPT_convert))
+        convertToOsd = 1;
+#endif
 
     return 0;
 }
@@ -448,6 +469,28 @@ main(int argc, char **argv)
     OpenLog(logFile);
 
     VOptDefaults(volumeServer, &opts);
+#ifdef AFS_PTHREAD_ENV
+    if (libafsosd) {
+        extern char *AFSVersion;
+        extern struct vol_data_v0 vol_data_v0;
+        extern struct volser_data_v0 volser_data_v0;
+        struct init_volser_inputs input = {
+            &vol_data_v0,
+            &volser_data_v0
+        };
+        struct init_volser_outputs output = {
+            &osdvol,
+            &osdvolser
+        };
+
+        code = load_libafsosd("init_volser_afsosd", &input, &output);
+        if (code) {
+            ViceLog(0, ("Loading libafsosd.so failed with code %d, aborting\n",
+                        code));
+            return -1;
+        }
+    }
+#endif
     if (VInitVolumePackage2(volumeServer, &opts)) {
 	Log("Shutting down: errors encountered initializing volume package\n");
 	exit(1);
@@ -470,9 +513,9 @@ main(int argc, char **argv)
             AFSDIR_SERVER_NETINFO_FILEPATH) {
             char reason[1024];
             ccode = afsconf_ParseNetFiles(SHostAddrs, NULL, NULL,
-                                          ADDRSPERSITE, reason,
-                                          AFSDIR_SERVER_NETINFO_FILEPATH,
-                                          AFSDIR_SERVER_NETRESTRICT_FILEPATH);
+                                           ADDRSPERSITE, reason,
+                                           AFSDIR_SERVER_NETINFO_FILEPATH,
+                                           AFSDIR_SERVER_NETRESTRICT_FILEPATH);
         } else
 	{
             ccode = rx_getAllAddr(SHostAddrs, ADDRSPERSITE);
@@ -510,6 +553,7 @@ main(int argc, char **argv)
 	opr_Verify(pthread_attr_init(&tattr) == 0);
 	opr_Verify(pthread_attr_setdetachstate(&tattr,
 					       PTHREAD_CREATE_DETACHED) == 0);
+
 	opr_Verify(pthread_create(&tid, &tattr, BKGLoop, NULL) == 0);
 #else
 	PROCESS pid;
@@ -563,6 +607,18 @@ main(int argc, char **argv)
 	Abort("rx_NewService");
     rx_SetMinProcs(service, 2);
     rx_SetMaxProcs(service, 4);
+
+#ifdef AFS_PTHREAD_ENV
+    if (libafsosd) {
+        service =
+            rx_NewService(0, 7, "afsosd", securityClasses,
+                      numClasses, (osdvolser->op_AFSVOLOSD_ExecuteRequest));
+        if (!service) {
+            ViceLog(0, ("Failed to initialize afsosd rpc service.\n"));
+            exit(-1);
+        }
+    }
+#endif
 
     LogCommandLine(argc, argv, "Volserver", VolserVersion, "Starting AFS",
 		   Log);

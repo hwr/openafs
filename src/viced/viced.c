@@ -80,6 +80,8 @@
 # include "sys/lock.h"
 #endif
 #include <rx/rx_globals.h>
+#define BUILDING_FILESERVER	1
+#include "../rxosd/afsosd.h"
 
 extern int etext;
 
@@ -168,6 +170,7 @@ int abort_threshold = 10;
 int udpBufSize = 0;		/* UDP buffer size for receive */
 int sendBufSize = 16384;	/* send buffer size */
 int saneacls = 0;		/* Sane ACLs Flag */
+int libafsosd = 0;		/* load shared library libafsosd.so or libdafsosd.so */
 static int unsafe_attach = 0;   /* avoid inUse check on vol attach? */
 static int offline_timeout = -1; /* -offline-timeout option */
 static int offline_shutdown_timeout = -1; /* -offline-shutdown-timeout option */
@@ -414,7 +417,8 @@ FiveMinuteCheckLWP(void *unused)
 #else
     while (1) {
 #endif
-
+	if (osdvol)
+	    (osdvol->op_osd_5min_check)();
 	sleep(fiveminutes);
 
 #ifdef AFS_DEMAND_ATTACH_FS
@@ -927,6 +931,7 @@ enum optionsList {
     OPT_lock,
     OPT_readonly,
     OPT_saneacls,
+    OPT_libafsosd,
     OPT_buffers,
     OPT_callbacks,
     OPT_vcsize,
@@ -1019,6 +1024,8 @@ ParseArgs(int argc, char *argv[])
 			CMD_OPTIONAL, "be a readonly fileserver");
     cmd_AddParmAtOffset(opts, OPT_saneacls, "-saneacls", CMD_FLAG,
 		        CMD_OPTIONAL, "set the saneacls capability bit");
+    cmd_AddParmAtOffset(opts, OPT_libafsosd, "-libafsosd", CMD_FLAG,
+			CMD_OPTIONAL, "load libafsosd to support object storage");
 
     cmd_AddParmAtOffset(opts, OPT_buffers, "-b", CMD_SINGLE,
 			CMD_OPTIONAL, "buffers");
@@ -1158,9 +1165,9 @@ ParseArgs(int argc, char *argv[])
 
     /* testing options */
     cmd_AddParmAtOffset(opts, OPT_logfile, "-logfile", CMD_SINGLE,
-	    CMD_OPTIONAL, "location of log file");
+            CMD_OPTIONAL, "location of log file");
     cmd_AddParmAtOffset(opts, OPT_config, "-config", CMD_SINGLE,
-	    CMD_OPTIONAL, "configuration location");
+            CMD_OPTIONAL, "configuration location");
 
     code = cmd_Parse(argc, argv, &opts);
     if (code == CMD_HELP) {
@@ -1219,12 +1226,13 @@ ParseArgs(int argc, char *argv[])
 #endif
     cmd_OptionAsFlag(opts, OPT_readonly, &readonlyServer);
     cmd_OptionAsFlag(opts, OPT_saneacls, &saneacls);
+    cmd_OptionAsFlag(opts, OPT_libafsosd, &libafsosd);
     cmd_OptionAsInt(opts, OPT_buffers, &buffs);
 
     if (cmd_OptionAsInt(opts, OPT_callbacks, &numberofcbs) == 0) {
 	if ((numberofcbs < 10000) || (numberofcbs > 2147483647)) {
 	    printf("number of cbs %d invalid; "
-		   "must be between 10000 and 2147483647\n", numberofcbs);
+	           "must be between 10000 and 2147483647\n", numberofcbs);
 	    return -1;
 	}
     }
@@ -1296,10 +1304,10 @@ ParseArgs(int argc, char *argv[])
     cmd_OptionAsUint(opts, OPT_vhandle_initial_cachesize,
 		    &vol_io_params.fd_initial_cachesize);
     if (cmd_OptionAsString(opts, OPT_sync, &sync_behavior) == 0) {
-	if (ih_SetSyncBehavior(sync_behavior)) {
-	    printf("Invalid -sync value %s\n", sync_behavior);
-	    return -1;
-	}
+        if (ih_SetSyncBehavior(sync_behavior)) {
+            printf("Invalid -sync value %s\n", sync_behavior);
+            return -1;
+        }
     }
 
 #ifdef AFS_DEMAND_ATTACH_FS
@@ -1427,7 +1435,6 @@ ParseArgs(int argc, char *argv[])
     cmd_OptionAsString(opts, OPT_logfile, &logFile);
     cmd_OptionAsString(opts, OPT_config, &FS_configPath);
 
-
     if (auditFileName)
 	osi_audit_file(auditFileName);
 
@@ -1534,9 +1541,9 @@ vl_Initialize(struct afsconf_dir *dir)
     }
     code = afsconf_GetCellInfo(dir, NULL, AFSCONF_VLDBSERVICE, &info);
     if (code) {
-	ViceLog(0,
-		("vl_Initialize: Failed to get cell information\n"));
-	exit(1);
+        ViceLog(0,
+                ("vl_Initialize: Failed to get cell information\n"));
+        exit(1);
     }
     if (info.numServers > MAXSERVERS) {
 	ViceLog(0,
@@ -2054,6 +2061,34 @@ main(int argc, char *argv[])
     }
     rx_SetMinProcs(tservice, 2);
     rx_SetMaxProcs(tservice, 4);
+
+    if (libafsosd) {
+        extern struct vol_data_v0 vol_data_v0;
+        extern struct viced_data_v0 viced_data_v0;
+        extern struct osd_viced_data_v0 *osddata;
+        struct init_viced_inputs input = {
+            &vol_data_v0,
+            &viced_data_v0
+        };
+        struct init_viced_outputs output = {
+            &osdvol,
+            &osdviced,
+            &osddata
+        };
+        code = load_libafsosd("init_viced_afsosd", &input, &output);
+        if (code) {
+            ViceLog(0, ("Loading libafsosd.so failed with code %d, aborting\n",
+                        code));
+            exit(-1);
+        }
+        tservice =
+            rx_NewService(0, 2 /* VICEDOSD_SERVICE */, "afsosd", securityClasses,
+                          numClasses, (osdviced->op_RXAFSOSD_ExecuteRequest));
+        if (!tservice) {
+            ViceLog(0, ("Failed to initialize afsosd rpc service.\n"));
+            exit(-1);
+        }
+    }
 
     /* Some rx debugging */
     if (rxlog || eventlog) {

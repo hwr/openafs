@@ -48,6 +48,7 @@
 #ifdef AFS_NT40_ENV
 #include "ntops.h"
 #endif
+#include "../rxosd/afsosd.h"
 
 struct VnodeClassInfo VnodeClassInfo[nVNODECLASSES];
 
@@ -633,15 +634,21 @@ VAllocVnode_r(Error * ec, Volume * vp, VnodeType type, VnodeId in_vnode, Unique 
     }
 
     if (vp->nextVnodeUnique > V_uniquifier(vp)) {
-	VUpdateVolume_r(ec, vp, 0);
-	if (*ec)
-	    return NULL;
+        VUpdateVolume_r(ec, vp, 0);
+        if (*ec)
+            return NULL;
+    }
+
+    if (V_osdPolicy(vp)) {
+	/* The uniquifier as part of the objectId should not exceed 24 bits */
+	if ((vp->nextVnodeUnique +1) & ~0xffffff)
+	    vp->nextVnodeUnique = 1;
     }
 
     if (programType == fileServer) {
-	VAddToVolumeUpdateList_r(ec, vp);
-	if (*ec)
-	    return NULL;
+        VAddToVolumeUpdateList_r(ec, vp);
+        if (*ec)
+            return NULL;
     }
 
     /*
@@ -653,58 +660,58 @@ VAllocVnode_r(Error * ec, Volume * vp, VnodeType type, VnodeId in_vnode, Unique 
     if (!in_vnode) {
 	int rollover = 0;
 
-	unique = vp->nextVnodeUnique++;
-	if (unique == 0) {
-	    rollover = 1;	/* nextVnodeUnique rolled over */
-	    vp->nextVnodeUnique = 2;	/* 1 is reserved for the root vnode */
+        unique = vp->nextVnodeUnique++;
+        if (unique == 0) {
+	    rollover = 1;       /* nextVnodeUnique rolled over */
+	    vp->nextVnodeUnique = 2;    /* 1 is reserved for the root vnode */
 	    unique = vp->nextVnodeUnique++;
 	}
 
-	if (vp->nextVnodeUnique > V_uniquifier(vp) || rollover) {
+        if (vp->nextVnodeUnique > V_uniquifier(vp) || rollover) {
 	    VUpdateVolume_r(ec, vp, 0);
 	    if (*ec)
-		return NULL;
-	}
+	        return NULL;
+        }
 
-	/* Find a slot in the bit map */
-	bitNumber = VAllocBitmapEntry_r(ec, vp, &vp->vnodeIndex[class],
-		VOL_ALLOC_BITMAP_WAIT);
+        /* Find a slot in the bit map */
+        bitNumber = VAllocBitmapEntry_r(ec, vp, &vp->vnodeIndex[class],
+                VOL_ALLOC_BITMAP_WAIT);
 
-	if (*ec)
-	    return NULL;
-	vnodeNumber = bitNumberToVnodeNumber(bitNumber, class);
+        if (*ec)
+            return NULL;
+        vnodeNumber = bitNumberToVnodeNumber(bitNumber, class);
     } else {
-	index = &vp->vnodeIndex[class];
-	if (!in_unique) {
-	    *ec = VNOVNODE;
-	    return NULL;
-	}
-	/* Catch us up to where the master is */
-	if (in_unique > vp->nextVnodeUnique)
-	    vp->nextVnodeUnique = in_unique+1;
+        index = &vp->vnodeIndex[class];
+        if (!in_unique) {
+            *ec = VNOVNODE;
+            return NULL;
+        }
+        /* Catch us up to where the master is */
+        if (in_unique > vp->nextVnodeUnique)
+            vp->nextVnodeUnique = in_unique+1;
 
-	if (vp->nextVnodeUnique > V_uniquifier(vp)) {
-	    VUpdateVolume_r(ec, vp, 0);
-	    if (*ec)
-		return NULL;
-	}
+        if (vp->nextVnodeUnique > V_uniquifier(vp)) {
+            VUpdateVolume_r(ec, vp, 0);
+            if (*ec)
+                return NULL;
+        }
 
-	unique = in_unique;
-	bitNumber = vnodeIdToBitNumber(in_vnode);
-	offset = bitNumber >> 3;
+        unique = in_unique;
+        bitNumber = vnodeIdToBitNumber(in_vnode);
+        offset = bitNumber >> 3;
 
-	/* Mark vnode in use. Grow bitmap if needed. */
-	if ((offset >= index->bitmapSize)
-		|| ((*(index->bitmap + offset) & (1 << (bitNumber & 0x7))) == 0))
-	    VGrowBitmap(index);
-	/* Should not happen */
-	if (*(index->bitmap + offset) & (1 << (bitNumber & 0x7))) {
-	    *ec = VNOVNODE;
-	    return NULL;
-	}
+        /* Mark vnode in use. Grow bitmap if needed. */
+        if ((offset >= index->bitmapSize)
+                || ((*(index->bitmap + offset) & (1 << (bitNumber & 0x7))) == 0))
+            VGrowBitmap(index);
+        /* Should not happen */
+        if (*(index->bitmap + offset) & (1 << (bitNumber & 0x7))) {
+            *ec = VNOVNODE;
+            return NULL;
+        }
 
-	*(index->bitmap + offset) |= (1 << (bitNumber & 0x7));
-	vnodeNumber = in_vnode;
+        *(index->bitmap + offset) |= (1 << (bitNumber & 0x7));
+        vnodeNumber = in_vnode;
     }
 
     /*
@@ -908,7 +915,8 @@ VAllocVnode_r(Error * ec, Volume * vp, VnodeType type, VnodeId in_vnode, Unique 
     vnp->changed_newTime = 0;	/* set this bit when vnode is updated */
     vnp->changed_oldTime = 0;	/* set this on CopyOnWrite. */
     vnp->delete = 0;
-    vnp->disk.vnodeMagic = vcp->magic;
+    if (!(V_osdPolicy(vp)))
+        vnp->disk.vnodeMagic = vcp->magic;
     vnp->disk.type = type;
     vnp->disk.uniquifier = unique;
     vnp->handle = NULL;
@@ -993,7 +1001,8 @@ VnLoad(Error * ec, Volume * vp, Vnode * vnp,
     VOL_LOCK;
 
     /* Quick check to see that the data is reasonable */
-    if (vnp->disk.vnodeMagic != vcp->magic || vnp->disk.type == vNull) {
+    if (vnp->disk.type == vNull 
+      || (!V_osdPolicy(vp) && vnp->disk.vnodeMagic != vcp->magic)) {
 	if (vnp->disk.type == vNull) {
 	    *ec = VNOVNODE;
 	    dosalv = 0;
@@ -1159,7 +1168,7 @@ VnStore(Error * ec, Volume * vp, Vnode * vnp,
  */
 Vnode *
 VGetVnode(Error * ec, Volume * vp, VnodeId vnodeNumber, int locktype)
-{				/* READ_LOCK or WRITE_LOCK, as defined in lock.h */
+{		/* READ_LOCK or SHARED_LOCK or WRITE_LOCK, as defined in lock.h */
     Vnode *retVal;
     VOL_LOCK;
     retVal = VGetVnode_r(ec, vp, vnodeNumber, locktype);
@@ -1184,7 +1193,7 @@ VGetVnode(Error * ec, Volume * vp, VnodeId vnodeNumber, int locktype)
  */
 Vnode *
 VGetVnode_r(Error * ec, Volume * vp, VnodeId vnodeNumber, int locktype)
-{				/* READ_LOCK or WRITE_LOCK, as defined in lock.h */
+{		/* READ_LOCK or SHARED_LOCK or WRITE_LOCK, as defined in lock.h */
     Vnode *vnp;
     VnodeClass class;
     struct VnodeClassInfo *vcp;
@@ -1225,7 +1234,8 @@ VGetVnode_r(Error * ec, Volume * vp, VnodeId vnodeNumber, int locktype)
     }
     class = vnodeIdToClass(vnodeNumber);
     vcp = &VnodeClassInfo[class];
-    if (locktype == WRITE_LOCK && !VolumeWriteable(vp)) {
+    if ((locktype == WRITE_LOCK  || locktype == SHARED_LOCK)
+      && !VolumeWriteable(vp)) {
 	*ec = (bit32) VREADONLY;
 	return NULL;
     }
@@ -1264,7 +1274,9 @@ VGetVnode_r(Error * ec, Volume * vp, VnodeId vnodeNumber, int locktype)
 	 */
 	if (locktype == READ_LOCK) {
 	    VnWaitExclusiveState_r(vnp);
-	} else {
+	} else if (locktype == SHARED_LOCK){
+	    VnWaitOtherWriter_r(vnp);
+	} else /* if (locktype == WRITE_LOCK) */ {
 	    VnWaitQuiescent_r(vnp);
 	}
 
@@ -1348,7 +1360,6 @@ VGetVnode_r(Error * ec, Volume * vp, VnodeId vnodeNumber, int locktype)
     return vnp;
 }
 
-
 int TrustVnodeCacheEntry = 1;
 /* This variable is bogus--when it's set to 0, the hash chains fill
    up with multiple versions of the same vnode.  Should fix this!! */
@@ -1378,39 +1389,45 @@ VPutVnode(Error * ec, Vnode * vnp)
 void
 VPutVnode_r(Error * ec, Vnode * vnp)
 {
-    int writeLocked;
+    int writeLocked = 0, sharedLocked = 0, sharedLockWriter = 0;
     VnodeClass class;
     struct VnodeClassInfo *vcp;
+#ifdef AFS_PTHREAD_ENV
+    pthread_t thisProcess = pthread_self();
+#else /* AFS_PTHREAD_ENV */
+    PROCESS thisProcess;
+    LWP_CurrentProcess(&thisProcess);
+#endif /* AFS_PTHREAD_ENV */
 
     *ec = 0;
     opr_Assert(Vn_refcount(vnp) != 0);
     class = vnodeIdToClass(Vn_id(vnp));
     vcp = &VnodeClassInfo[class];
-    opr_Assert(vnp->disk.vnodeMagic == vcp->magic);
+    if (!V_osdPolicy(vnp->volumePtr))
+        opr_Assert(vnp->disk.vnodeMagic == vcp->magic);
     VNLog(200, 2, Vn_id(vnp), (intptr_t) vnp, 0, 0);
 
 #ifdef AFS_DEMAND_ATTACH_FS
     writeLocked = (Vn_state(vnp) == VN_STATE_EXCLUSIVE);
+    if (!writeLocked)
+	sharedLocked = (Vn_state(vnp) == VN_STATE_SHARED);
 #else
     writeLocked = WriteLocked(&vnp->lock);
+    if (!writeLocked)
+	sharedLocked = SharedLocked(&vnp->lock);
 #endif
+    if (sharedLocked && vnp->writer == thisProcess)
+	sharedLockWriter = 1;
 
-    if (writeLocked) {
-	/* sanity checks */
-#ifdef AFS_PTHREAD_ENV
-	pthread_t thisProcess = pthread_self();
-#else /* AFS_PTHREAD_ENV */
-	PROCESS thisProcess;
-	LWP_CurrentProcess(&thisProcess);
-#endif /* AFS_PTHREAD_ENV */
+    if (writeLocked || sharedLockWriter) {
 	VNLog(201, 2, (intptr_t) vnp,
 	      ((vnp->changed_newTime) << 1) | ((vnp->
 						changed_oldTime) << 1) | vnp->
 	      delete, 0, 0);
+	/* sanity checks */
 	if (thisProcess != vnp->writer)
 	    Abort("VPutVnode: Vnode at %"AFS_PTR_FMT" locked by another process!\n",
 		  vnp);
-
 
 	if (vnp->changed_oldTime || vnp->changed_newTime || vnp->delete) {
 	    Volume *vp = Vn_volume(vnp);
@@ -1449,8 +1466,8 @@ VPutVnode_r(Error * ec, Vnode * vnp)
 		 * (doing so could cause a "addled bitmap" message).
 		 */
 		if (vnp->delete && !*ec) {
-		  if (V_filecount(Vn_volume(vnp))-- < 1)
-		      V_filecount(Vn_volume(vnp)) = 0;
+		    if (V_filecount(Vn_volume(vnp))-- < 1)
+			V_filecount(Vn_volume(vnp)) = 0;
 		    VFreeBitMapEntry_r(ec, vp, &vp->vnodeIndex[class],
 				       vnodeIdToBitNumber(Vn_id(vnp)),
 				       VOL_FREE_BITMAP_WAIT);
@@ -1462,7 +1479,7 @@ VPutVnode_r(Error * ec, Vnode * vnp)
 #ifdef AFS_DEMAND_ATTACH_FS
 	VnChangeState_r(vnp, VN_STATE_ONLINE);
 #endif
-    } else {			/* Not write locked */
+    } else if (!sharedLocked) {			/* Just read locked */
 	if (vnp->changed_newTime || vnp->changed_oldTime || vnp->delete)
 	    Abort
 		("VPutVnode: Change or delete flag for vnode "
@@ -1476,7 +1493,12 @@ VPutVnode_r(Error * ec, Vnode * vnp)
     /* Do not look at disk portion of vnode after this point; it may
      * have been deleted above */
     vnp->delete = 0;
-    VnUnlock(vnp, ((writeLocked) ? WRITE_LOCK : READ_LOCK));
+    if (writeLocked)
+        VnUnlock(vnp, WRITE_LOCK);
+    else if (sharedLockWriter)
+        VnUnlock(vnp, SHARED_LOCK);
+    else
+        VnUnlock(vnp, READ_LOCK);
     VnCancelReservation_r(vnp);
 }
 
@@ -1528,7 +1550,8 @@ VVnodeWriteToRead_r(Error * ec, Vnode * vnp)
     opr_Assert(Vn_refcount(vnp) != 0);
     class = vnodeIdToClass(Vn_id(vnp));
     vcp = &VnodeClassInfo[class];
-    opr_Assert(vnp->disk.vnodeMagic == vcp->magic);
+    if (!V_osdPolicy(vnp->volumePtr))
+        opr_Assert(vnp->disk.vnodeMagic == vcp->magic);
     VNLog(300, 2, Vn_id(vnp), (intptr_t) vnp, 0, 0);
 
 #ifdef AFS_DEMAND_ATTACH_FS
@@ -1718,7 +1741,7 @@ VCloseVnodeFiles_r(Volume * vp)
 
     /* XXX need better error handling here */
     opr_Verify(VInvalidateVnodesByVolume_r(vp, &ih_vec,
-					   &vec_len) == 0);
+				       &vec_len) == 0);
 
     /*
      * DAFS:
@@ -1782,7 +1805,7 @@ VReleaseVnodeFiles_r(Volume * vp)
 
     /* XXX need better error handling here */
     opr_Verify(VInvalidateVnodesByVolume_r(vp, &ih_vec,
-					   &vec_len) == 0);
+				       &vec_len) == 0);
 
     /*
      * DAFS:
