@@ -159,6 +159,13 @@ ulock_relLock(struct ubik_trans *atrans)
  * \brief debugging hooks
  */
 void
+ulock_Debug_new(afs_int32 *anyReadLocks, afs_int32 * anyWriteLocks)
+{
+    *anyReadLocks = rwlock.readers_reading;
+    *anyWriteLocks = ((rwlock.excl_locked == WRITE_LOCK) ? 1 : 0);
+}
+
+void
 ulock_Debug(struct ubik_debug *aparm)
 {
     aparm->anyReadLocks = rwlock.readers_reading;
