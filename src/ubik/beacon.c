@@ -93,6 +93,14 @@ static int verifyInterfaceAddress(afs_uint32 *ame, struct afsconf_cell *info,
 
 /*! \brief procedure called from debug rpc call to get this module's state for debugging */
 void
+ubeacon_Debug_new(afs_int32 *asyncSiteUntil, afs_int32 *anServers)
+{
+    /* fill in beacon's state fields in the ubik_debug_new structure */
+    *asyncSiteUntil = beacon_globals.syncSiteUntil;
+    *anServers = nServers;
+}
+
+void
 ubeacon_Debug(struct ubik_debug *aparm)
 {
     /* fill in beacon's state fields in the ubik_debug structure */
@@ -399,10 +407,10 @@ ubeacon_Interact(void *dummy)
     struct timeval tt;
     struct rx_connection *connections[MAXSERVERS];
     struct ubik_server *servers[MAXSERVERS];
-    afs_int32 i;
+    afs_int32 i, j, k, l;
     struct ubik_server *ts;
     afs_int32 temp, yesVotes, lastWakeupTime, oldestYesVote, syncsite;
-    struct ubik_tid ttid;
+    struct ubik_db_stateList list;
     struct ubik_version tversion;
     afs_int32 startTime;
 
@@ -411,6 +419,7 @@ ubeacon_Interact(void *dummy)
     /* loop forever getting votes */
     lastWakeupTime = 0;		/* keep track of time we last started a vote collection */
     while (1) {
+	struct ubik_db_state buffer[MAX_UBIK_DBASES];
 
 	/* don't wakeup more than every POLLTIME seconds */
 	temp = (lastWakeupTime + POLLTIME) - FT_ApproxTime();
@@ -458,19 +467,35 @@ ubeacon_Interact(void *dummy)
 	/* this next is essentially an expansion of rgen's ServBeacon routine */
 
 	UBIK_VERSION_LOCK;
-	ttid.epoch = version_globals.ubik_epochTime;
-	if (ubik_dbase->flags & DBWRITING) {
-	    /*
-	     * if a write is in progress, we have to send the writeTidCounter
-	     * which holds the tid counter of the write transaction , and not
-	     * send the tidCounter value which holds the tid counter of the
-	     * last transaction.
-	     */
-	    ttid.counter = ubik_dbase->writeTidCounter;
-	} else
-	    ttid.counter = ubik_dbase->tidCounter + 1;
-	tversion.epoch = ubik_dbase->version.epoch;
-	tversion.counter = ubik_dbase->version.counter;
+	l = 0;
+	for (k=0; k<MAX_UBIK_DBASES; k++) {
+	    if (ubik_dbase[k])
+		l++;
+	}
+	memset(&buffer, 0, sizeof(buffer));
+	list.ubik_db_stateList_val = (struct ubik_db_state *)&buffer; 
+	list.ubik_db_stateList_len = l;
+	l = 0; /* offset in list */
+	for (k=0; k<MAX_UBIK_DBASES; k++) {
+	    if (!ubik_dbase[k])
+		continue; 	/* skip unused entry */
+	    list.ubik_db_stateList_val[l].index = k;
+	    list.ubik_db_stateList_val[l].vers = ubik_dbase[k]->version;
+	    list.ubik_db_stateList_val[l].tid.epoch = version_globals.ubik_epochTime[k];
+	    if (ubik_dbase[k]->flags & DBWRITING) {
+	        /*
+	         * if a write is in progress, we have to send the writeTidCounter
+	         * which holds the tid counter of the write transaction , and not
+	         * send the tidCounter value which holds the tid counter of the
+	         * last transaction.
+	         */
+		list.ubik_db_stateList_val[l].tid.counter =
+						ubik_dbase[k]->writeTidCounter;
+	    } else
+		list.ubik_db_stateList_val[l].tid.counter =
+						ubik_dbase[k]->tidCounter + 1;
+	    l++;
+	}
 	UBIK_VERSION_UNLOCK;
 
 	/* now analyze return codes, counting up our votes */
@@ -479,9 +504,9 @@ ubeacon_Interact(void *dummy)
 	syncsite = amSyncSite();
 	if (!syncsite) {
 	    /* Ok to use the DB lock here since we aren't sync site */
-	    DBHOLD(ubik_dbase);
+	    DBHOLD(ubik_dbase[0]);
 	    urecovery_ResetState();
-	    DBRELE(ubik_dbase);
+	    DBRELE(ubik_dbase[0]);
 	}
 	startTime = FT_ApproxTime();
 	/*
@@ -490,8 +515,7 @@ ubeacon_Interact(void *dummy)
 	if (i > 0) {
 	    char hoststr[16];
 	    multi_Rx(connections, i) {
-		multi_VOTE_Beacon(syncsite, startTime, &tversion,
-				  &ttid);
+		multi_VOTE_Beacon(syncsite, startTime, &list);
 		temp = FT_ApproxTime();	/* now, more or less */
 		ts = servers[multi_i];
 		UBIK_BEACON_LOCK;
@@ -499,7 +523,7 @@ ubeacon_Interact(void *dummy)
 		code = multi_error;
 
 		if (code > 0 && ((code < temp && code < temp - 3600) ||
-		                 (code > temp && code > temp + 3600))) {
+				 (code > temp && code > temp + 3600))) {
 		    /* if we reached here, supposedly the remote host voted
 		     * for us based on a computation from over an hour ago in
 		     * the past, or over an hour in the future. this is
@@ -509,15 +533,15 @@ ubeacon_Interact(void *dummy)
 		     * (rxkad, rxgk, etc). treat the host as if we got a
 		     * timeout, since this is not a valid vote. */
 		    ubik_print("assuming distant vote time %d from %s is an error; marking host down\n",
-		               (int)code, afs_inet_ntoa_r(ts->addr[0], hoststr));
+			       (int)code, afs_inet_ntoa_r(ts->addr[0], hoststr));
 		    code = -1;
 		}
-		if (code > 0 && rx_ConnError(connections[multi_i])) {
-		    ubik_print("assuming vote from %s is invalid due to conn error %d; marking host down\n",
-		               afs_inet_ntoa_r(ts->addr[0], hoststr),
-		               (int)rx_ConnError(connections[multi_i]));
-		    code = -1;
-		}
+                if (code > 0 && rx_ConnError(connections[multi_i])) {
+                    ubik_print("assuming vote from %s is invalid due to conn error %d; marking host down\n",
+                               afs_inet_ntoa_r(ts->addr[0], hoststr),
+                               (int)rx_ConnError(connections[multi_i]));
+                    code = -1;
+                }
 
 		/* note that the vote time (the return code) represents the time
 		 * the vote was computed, *not* the time the vote expires.  We compute
@@ -564,7 +588,7 @@ ubeacon_Interact(void *dummy)
 	 * the same restrictions apply for our voting for ourself as for our voting
 	 * for anyone else. */
 	i = SVOTE_Beacon((struct rx_call *)0, ubeacon_AmSyncSite(), startTime,
-			 &tversion, &ttid);
+			 &list);
 	if (i) {
 	    yesVotes += 2;
 	    if (amIMagic)
@@ -593,9 +617,9 @@ ubeacon_Interact(void *dummy)
 		ubik_dprint("Ubik: I am no longer the sync site\n");
 	    beacon_globals.ubik_amSyncSite = 0;
 	    UBIK_BEACON_UNLOCK;
-	    DBHOLD(ubik_dbase);
+	    DBHOLD(ubik_dbase[0]);
 	    urecovery_ResetState();	/* tell recovery we're no longer the sync site */
-	    DBRELE(ubik_dbase);
+	    DBRELE(ubik_dbase[0]);
 	}
 
     }				/* while loop */
@@ -643,9 +667,9 @@ verifyInterfaceAddress(afs_uint32 *ame, struct afsconf_cell *info,
 	 */
 	char reason[1024];
 	count = afsconf_ParseNetFiles(myAddr, NULL, NULL,
-				      UBIK_MAX_INTERFACE_ADDR, reason,
-				      AFSDIR_SERVER_NETINFO_FILEPATH,
-				      AFSDIR_SERVER_NETRESTRICT_FILEPATH);
+				  UBIK_MAX_INTERFACE_ADDR, reason,
+			  AFSDIR_SERVER_NETINFO_FILEPATH,
+			  AFSDIR_SERVER_NETRESTRICT_FILEPATH);
 	if (count < 0) {
 	    ubik_print("ubik: Can't register any valid addresses:%s\n",
 		       reason);
