@@ -277,16 +277,39 @@ AC_ARG_WITH([docbook-stylesheets],
 		AC_WARN([Docbook stylesheets not found; some documentation can't be built])
 	fi)
 
+AC_ARG_WITH([dot],
+	AS_HELP_STRING([--with-dot@<:@=PATH@:>@],
+        [use graphviz dot to generate dependency graphs with doxygen (defaults to autodetect)]),
+        [], [with_dot="maybe"])
+
 enable_login="no"
 
 dnl Check whether kindlegen exists.  If not, we'll suppress that part of the
 dnl documentation build.
 AC_CHECK_PROGS([KINDLEGEN], [kindlegen])
+AC_CHECK_PROGS([DOXYGEN], [doxygen])
 
-dnl weird ass systems
-dnl AC_AIX
+dnl Optionally generate graphs with doxygen.
+case "$with_dot" in
+maybe)
+    AC_CHECK_PROGS([DOT], [dot])
+    AS_IF([test "x$DOT" = "x"], [HAVE_DOT="no"], [HAVE_DOT="yes"])
+    ;;
+yes)
+    HAVE_DOT="yes"
+    ;;
+no)
+    HAVE_DOT="no"
+    ;;
+*)
+    HAVE_DOT="yes"
+    DOT_PATH=$with_dot
+esac
+AC_SUBST(HAVE_DOT)
+AC_SUBST(DOT_PATH)
+
+dnl Checks for UNIX variants.
 AC_ISC_POSIX
-dnl AC_MINIX
 
 dnl Various compiler setup.
 AC_TYPE_PID_T
@@ -787,6 +810,7 @@ case $AFS_SYSNAME in
     *_obsd51)   AFS_PARAM_COMMON=param.obsd51.h  ;;
     *_obsd52)   AFS_PARAM_COMMON=param.obsd52.h  ;;
     *_obsd53)   AFS_PARAM_COMMON=param.obsd53.h  ;;
+    *_obsd54)   AFS_PARAM_COMMON=param.obsd54.h  ;;
     *_linux22)  AFS_PARAM_COMMON=param.linux22.h ;;
     *_linux24)  AFS_PARAM_COMMON=param.linux24.h ;;
     *_linux26)  AFS_PARAM_COMMON=param.linux26.h ;;
@@ -853,6 +877,7 @@ case $AFS_SYSNAME in *_linux* | *_umlinux*)
 		 AC_CHECK_LINUX_STRUCT([inode], [i_security], [fs.h])
 		 AC_CHECK_LINUX_STRUCT([file_operations], [flock], [fs.h])
 		 AC_CHECK_LINUX_STRUCT([file_operations], [iterate], [fs.h])
+		 AC_CHECK_LINUX_STRUCT([file_operations], [read_iter], [fs.h])
 		 AC_CHECK_LINUX_STRUCT([file_operations], [sendfile], [fs.h])
 		 AC_CHECK_LINUX_STRUCT([file_system_type], [mount], [fs.h])
 		 AC_CHECK_LINUX_STRUCT([inode_operations], [truncate], [fs.h])
@@ -934,6 +959,9 @@ case $AFS_SYSNAME in *_linux* | *_umlinux*)
 		 AC_CHECK_LINUX_FUNC([inode_setattr],
 				     [#include <linux/fs.h>],
 				     [inode_setattr(NULL, NULL);])
+		 AC_CHECK_LINUX_FUNC([iter_file_splice_write],
+				     [#include <linux/fs.h>],
+				     [iter_file_splice_write(NULL,NULL,NULL,0,0);])
 		 AC_CHECK_LINUX_FUNC([kernel_setsockopt],
 				     [#include <linux/net.h>],
 				     [kernel_setsockopt(NULL, 0, 0, NULL, 0);])
@@ -1573,7 +1601,11 @@ AC_REPLACE_FUNCS([ \
 	err \
 	errx \
 	flock \
+	freeaddrinfo \
+	gai_strerror \
+	getaddrinfo \
 	getdtablesize \
+	getnameinfo \
 	getopt \
 	getprogname \
 	gettimeofday \

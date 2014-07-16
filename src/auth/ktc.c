@@ -42,7 +42,7 @@
 #endif
 
 #include <afs/vice.h>
-#include <afs/auth.h>
+#include "auth.h"
 #include <afs/venus.h>
 #include <afs/afsutil.h>
 
@@ -62,7 +62,7 @@
 #include "ktc.h"
 
 #ifdef AFS_KERBEROS_ENV
-#include <afs/cellconfig.h>
+#include "cellconfig.h"
 static char lcell[MAXCELLCHARS];
 
 #define TKT_ROOT "/tmp/tkt"
@@ -682,7 +682,7 @@ GetToken(struct ktc_principal *aserver, struct ktc_token *atoken,
 		/* got token for cell; check that it will fit */
 		maxLen =
 		    atokenLen - sizeof(struct ktc_token) + MAXKTCTICKETLEN;
-		if (maxLen < tktLen) {
+		if (tktLen < 0 || tktLen > maxLen) {
 		    UNLOCK_GLOBAL_MUTEX;
 		    return KTC_TOOBIG;
 		}

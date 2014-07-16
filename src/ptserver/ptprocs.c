@@ -572,7 +572,7 @@ nameToID(struct rx_call *call, namelist *aname, idlist *aid)
 
 	if (cell && *cell) {
 	    code = afsconf_IsLocalRealmMatch(prdir, &islocal, nameinst, NULL, cell);
-	    ViceLog(0,
+	    ViceLog(125,
 		    ("PTS_NameToID: afsconf_IsLocalRealmMatch(); code=%d, nameinst=%s, cell=%s\n",
 		     code, nameinst, cell));
 	}
@@ -2010,11 +2010,11 @@ WhoIsThisWithName(struct rx_call *acall, struct ubik_trans *at, afs_int32 *aid,
     *aid = ANONYMOUSID;
     tconn = rx_ConnectionOf(acall);
     code = rx_SecurityClassOf(tconn);
-    if (code == 0)
+    if (code == RX_SECIDX_NULL)
 	return 0;
-    else if (code == 1) {	/* vab class */
+    else if (code == RX_SECIDX_VAB) {
 	goto done;		/* no longer supported */
-    } else if (code == 2) {	/* kad class */
+    } else if (code == RX_SECIDX_KAD) {
 	if ((code = rxkad_GetServerInfo(rx_ConnectionOf(acall), NULL, NULL,
 					name, inst, tcell, NULL)))
 	    goto done;

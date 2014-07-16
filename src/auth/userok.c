@@ -744,14 +744,14 @@ afsconf_SuperIdentity(struct afsconf_dir *adir, struct rx_call *acall,
 
     tconn = rx_ConnectionOf(acall);
     code = rx_SecurityClassOf(tconn);
-    if (code == 0) {
+    if (code == RX_SECIDX_NULL) {
 	UNLOCK_GLOBAL_MUTEX;
 	return 0;		/* not authenticated at all, answer is no */
-    } else if (code == 1) {
+    } else if (code == RX_SECIDX_VAB) {
 	/* bcrypt tokens */
 	UNLOCK_GLOBAL_MUTEX;
 	return 0;		/* not supported any longer */
-    } else if (code == 2) {
+    } else if (code == RX_SECIDX_KAD) {
 	flag = rxkadSuperUser(adir, acall, identity);
 	UNLOCK_GLOBAL_MUTEX;
 	return flag;
@@ -803,4 +803,31 @@ afsconf_SuperUser(struct afsconf_dir *adir, struct rx_call *acall,
     }
 
     return ret;
+}
+
+/*!
+ * Check whether the user authenticated on a given RX call is
+ * compatible with the access specified by needed_level.
+ *
+ * @param[in] adir
+ * 	The configuration directory currently in use
+ * @param[in] acall
+ * 	The RX call whose authenticated identity is being checked
+ * @param[in] needed_level
+ * 	Either RESTRICTED_QUERY_ANYUSER for allowing any access or
+ * 	RESTRICTED_QUERY_ADMIN for allowing super user only.
+ * @returns
+ * 	True if the user is compatible with needed_level.
+ *      Otherwise, false.
+ */
+
+int
+afsconf_CheckRestrictedQuery(struct afsconf_dir *adir,
+			     struct rx_call *acall,
+			     int needed_level)
+{
+    if (needed_level == RESTRICTED_QUERY_ANYUSER)
+	return 1;
+
+    return afsconf_SuperIdentity(adir, acall, NULL);
 }

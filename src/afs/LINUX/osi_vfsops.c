@@ -171,13 +171,13 @@ static int
 afs_root(struct super_block *afsp)
 {
     afs_int32 code = 0;
-    struct vrequest treq;
     struct vcache *tvp = 0;
 
     AFS_STATCNT(afs_root);
     if (afs_globalVp && (afs_globalVp->f.states & CStatd)) {
 	tvp = afs_globalVp;
     } else {
+	struct vrequest *treq = NULL;
 	cred_t *credp = crref();
 
 	if (afs_globalVp) {
@@ -185,29 +185,34 @@ afs_root(struct super_block *afsp)
 	    afs_globalVp = NULL;
 	}
 
-	if (!(code = afs_InitReq(&treq, credp)) && !(code = afs_CheckInit())) {
-	    tvp = afs_GetVCache(&afs_rootFid, &treq, NULL, NULL);
+	if (!(code = afs_CreateReq(&treq, credp)) && !(code = afs_CheckInit())) {
+	    tvp = afs_GetVCache(&afs_rootFid, treq, NULL, NULL);
 	    if (tvp) {
 		struct inode *ip = AFSTOV(tvp);
-		struct vattr vattr;
+		struct vattr *vattr = NULL;
 
-		afs_getattr(tvp, &vattr, credp);
-		afs_fill_inode(ip, &vattr);
+		code = afs_CreateAttr(&vattr);
+		if (!code) {
+		    afs_getattr(tvp, vattr, credp);
+		    afs_fill_inode(ip, vattr);
 
-		/* setup super_block and mount point inode. */
-		afs_globalVp = tvp;
+		    /* setup super_block and mount point inode. */
+		    afs_globalVp = tvp;
 #if defined(HAVE_LINUX_D_MAKE_ROOT)
-		afsp->s_root = d_make_root(ip);
+		    afsp->s_root = d_make_root(ip);
 #else
-		afsp->s_root = d_alloc_root(ip);
+		    afsp->s_root = d_alloc_root(ip);
 #endif
 #if !defined(STRUCT_SUPER_BLOCK_HAS_S_D_OP)
-		afsp->s_root->d_op = &afs_dentry_operations;
+		    afsp->s_root->d_op = &afs_dentry_operations;
 #endif
+		    afs_DestroyAttr(vattr);
+		}
 	    } else
 		code = ENOENT;
 	}
 	crfree(credp);
+	afs_DestroyReq(treq);
     }
 
     afs_Trace2(afs_iclSetp, CM_TRACE_VFSROOT, ICL_TYPE_POINTER, afs_globalVp,

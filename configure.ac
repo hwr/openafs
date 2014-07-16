@@ -110,6 +110,21 @@ AC_SUBST([AKLOG_KRB5_LIBS])
 
 dnl Probe for GSSAPI
 RRA_LIB_GSSAPI
+dnl Check for the characteristics of whatever GSSAPI we found, if we found one
+BUILD_GSSAPI=no
+AS_IF([test x"$GSSAPI_LIBS" != x],
+    [BUILD_GSSAPI=yes
+     RRA_LIB_GSSAPI_SWITCH
+     AC_CHECK_FUNCS([gss_pseudo_random \
+	krb5_gss_register_acceptor_identity \
+	gss_krb5_ccache_name \
+     ])
+dnl We only need gssapi for rxgk (at this point).  rxgk requires pseudo_random.
+     AS_IF([test x"$ac_cv_func_gss_pseudo_random" != xyes],
+	   [BUILD_GSSAPI=no])
+     RRA_LIB_GSSAPI_RESTORE
+])
+AC_SUBST([BUILD_GSSAPI])
 
 dnl Checks for summary
 OPENAFS_SUMMARY_CHECK_NAMEI
@@ -132,6 +147,9 @@ AS_IF([test -f 'doc/xml/AdminRef/Makefile.in'],
 AS_IF([test -f 'doc/xml/mobi-fixup.xsl.in'],
     [MOBI_FIXUP_XSL="doc/xml/mobi-fixup.xsl"],
     [MOBI_FIXUP_XSL=])
+AS_IF([test -f 'doc/doxygen/Doxyfile.in'],
+    [DOXYFILE="doc/doxygen/Doxyfile"],
+    [DOXYFILE=])
 
 AC_OUTPUT([
     Makefile
@@ -141,6 +159,7 @@ AC_OUTPUT([
     ${USERGUIDE_MAKEFILE}
     ${ADMINREF_MAKEFILE}
     ${MOBI_FIXUP_XSL}
+    ${DOXYFILE}
     src/afs/Makefile
     src/afsd/Makefile
     src/afsmonitor/Makefile
@@ -237,6 +256,7 @@ AC_OUTPUT([
     src/rx/test/Makefile
     src/rxdebug/Makefile
     src/rxgen/Makefile
+    src/rxgk/Makefile
     src/rxkad/Makefile
     src/rxkad/test/Makefile
     src/rxosd/Makefile

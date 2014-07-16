@@ -41,6 +41,7 @@
 #include <inet/ip.h>
 #endif
 
+#include "afs/afs_axscache.h"
 
 /* Exported variables */
 afs_rwlock_t afs_xuser;
@@ -49,7 +50,7 @@ struct unixuser *afs_users[NUSERS];
 
 #ifndef AFS_PAG_MANAGER
 /* Forward declarations */
-void afs_ResetAccessCache(afs_int32 uid, int alock);
+void afs_ResetAccessCache(afs_int32 uid, afs_int32 cell, int alock);
 #endif /* !AFS_PAG_MANAGER */
 
 
@@ -117,6 +118,23 @@ afs_GCUserData(int aforce)
 
 }				/*afs_GCUserData */
 
+static struct unixuser *
+afs_FindUserNoLock(afs_int32 auid, afs_int32 acell)
+{
+    struct unixuser *tu;
+    afs_int32 i;
+
+    AFS_STATCNT(afs_FindUser);
+    i = UHash(auid);
+    for (tu = afs_users[i]; tu; tu = tu->next) {
+	if (tu->uid == auid && ((tu->cell == acell) || (acell == -1))) {
+	    tu->refCount++;
+	    return tu;
+	}
+    }
+    return NULL;
+
+}
 
 #ifndef AFS_PAG_MANAGER
 /*
@@ -130,6 +148,9 @@ afs_CheckTokenCache(void)
     int i;
     struct unixuser *tu;
     afs_int32 now;
+    struct vcache *tvc;
+    struct axscache *tofreelist;
+    int do_scan = 0;
 
     AFS_STATCNT(afs_CheckCacheResets);
     ObtainReadLock(&afs_xvcache);
@@ -137,8 +158,6 @@ afs_CheckTokenCache(void)
     now = osi_Time();
     for (i = 0; i < NUSERS; i++) {
 	for (tu = afs_users[i]; tu; tu = tu->next) {
-	    afs_int32 uid;
-
 	    /*
 	     * If tokens are still good and user has Kerberos tickets,
 	     * check expiration
@@ -152,20 +171,60 @@ afs_CheckTokenCache(void)
 		    tu->states |= (UTokensBad | UNeedsReset);
 		}
 	    }
-	    if (tu->states & UNeedsReset) {
-		tu->states &= ~UNeedsReset;
-		uid = tu->uid;
-		afs_ResetAccessCache(uid, 0);
+	    if (tu->states & UNeedsReset)
+		do_scan = 1;
+	}
+    }
+    /* Skip the potentially expensive scan if nothing to do */
+    if (!do_scan)
+	goto done;
+
+    tofreelist = NULL;
+    for (i = 0; i < VCSIZE; i++) {
+	for (tvc = afs_vhashT[i]; tvc; tvc = tvc->hnext) {
+	    /* really should do this under cache write lock, but that.
+	     * is hard to under locking hierarchy */
+	    if (tvc->Access) {
+		struct axscache **ac, **nac;
+
+		for ( ac = &tvc->Access; *ac;)  {
+		    nac = &(*ac)->next;
+		    tu = afs_FindUserNoLock((*ac)->uid, tvc->f.fid.Cell);
+		    if (tu == NULL || (tu->states & UNeedsReset)) {
+			struct axscache *tmp;
+			tmp = *ac;
+			*ac = *nac;
+			tmp->next = tofreelist;
+			tofreelist = tmp;
+		    } else
+			ac = nac;
+		    if (tu != NULL)
+			tu->refCount--;
+		}
 	    }
 	}
     }
+    afs_FreeAllAxs(&tofreelist);
+    for (i = 0; i < NUSERS; i++) {
+	for (tu = afs_users[i]; tu; tu = tu->next) {
+	    if (tu->states & UNeedsReset)
+		tu->states &= ~UNeedsReset;
+	}
+    }
+
+done:
     ReleaseReadLock(&afs_xuser);
     ReleaseReadLock(&afs_xvcache);
 }				/*afs_CheckTokenCache */
 
 
+/* Remove any access caches associated with this uid+cell
+ * by scanning the entire vcache table.  Specify cell=-1
+ * to remove all access caches associated with this uid
+ * regardless of cell.
+ */
 void
-afs_ResetAccessCache(afs_int32 uid, int alock)
+afs_ResetAccessCache(afs_int32 uid, afs_int32 cell, int alock)
 {
     int i;
     struct vcache *tvc;
@@ -178,8 +237,11 @@ afs_ResetAccessCache(afs_int32 uid, int alock)
 	for (tvc = afs_vhashT[i]; tvc; tvc = tvc->hnext) {
 	    /* really should do this under cache write lock, but that.
 	     * is hard to under locking hierarchy */
-	    if (tvc->Access && (ac = afs_FindAxs(tvc->Access, uid))) {
-		afs_RemoveAxs(&tvc->Access, ac);
+	    if (tvc->Access && (cell == -1 || tvc->f.fid.Cell == cell)) {
+		ac = afs_FindAxs(tvc->Access, uid);
+		if (ac) {
+		    afs_RemoveAxs(&tvc->Access, ac);
+		}
 	    }
 	}
     }
@@ -218,7 +280,7 @@ afs_ResetUserConns(struct unixuser *auser)
 
     ReleaseWriteLock(&afs_xconn);
     ReleaseReadLock(&afs_xsrvAddr);
-    afs_ResetAccessCache(auser->uid, 1);
+    afs_ResetAccessCache(auser->uid, auser->cell, 1);
     auser->states &= ~UNeedsReset;
 }				/*afs_ResetUserConns */
 #endif /* !AFS_PAG_MANAGER */
@@ -228,22 +290,13 @@ struct unixuser *
 afs_FindUser(afs_int32 auid, afs_int32 acell, afs_int32 locktype)
 {
     struct unixuser *tu;
-    afs_int32 i;
 
-    AFS_STATCNT(afs_FindUser);
-    i = UHash(auid);
     ObtainWriteLock(&afs_xuser, 99);
-    for (tu = afs_users[i]; tu; tu = tu->next) {
-	if (tu->uid == auid && ((tu->cell == acell) || (acell == -1))) {
-	    tu->refCount++;
-	    ReleaseWriteLock(&afs_xuser);
-	    afs_LockUser(tu, locktype, 365);
-	    return tu;
-	}
-    }
+    tu = afs_FindUserNoLock(auid, acell);
     ReleaseWriteLock(&afs_xuser);
-    return NULL;
-
+    if (tu)
+	afs_LockUser(tu, locktype, 365);
+    return tu;
 }				/*afs_FindUser */
 
 
@@ -403,18 +456,32 @@ afs_ComputePAGStats(void)
 
 }				/*afs_ComputePAGStats */
 
+/*!
+ * Obtain a unixuser for the specified uid and cell;
+ * if no existing match found, allocate a new one.
+ *
+ * \param[in] auid	uid/PAG value
+ * \param[in] acell	cell number; if -1, match on auid only
+ * \param[in] locktype  locktype desired on returned unixuser
+ *
+ * \post unixuser is chained in afs_users[], returned with <locktype> held
+ *
+ * \note   Maintain unixusers in sorted order within hash bucket to enable
+ *         small lookup optimizations.
+ */
 
 struct unixuser *
 afs_GetUser(afs_int32 auid, afs_int32 acell, afs_int32 locktype)
 {
-    struct unixuser *tu, *pu = 0;
+    struct unixuser *tu, *xu = 0, *pu = 0;
     afs_int32 i;
     afs_int32 RmtUser = 0;
 
     AFS_STATCNT(afs_GetUser);
     i = UHash(auid);
     ObtainWriteLock(&afs_xuser, 104);
-    for (tu = afs_users[i]; tu; tu = tu->next) {
+    /* unixusers are sorted by uid in each hash bucket */
+    for (tu = afs_users[i]; tu && (tu->uid <= auid) ; xu = tu, tu = tu->next) {
 	if (tu->uid == auid) {
 	    RmtUser = 0;
 	    pu = NULL;
@@ -433,6 +500,10 @@ afs_GetUser(afs_int32 auid, afs_int32 acell, afs_int32 locktype)
 	    }
 	}
     }
+    /* no matching unixuser found; repurpose the tu pointer to
+     * allocate a new unixuser.
+     * xu will be insertion point for our new unixuser.
+     */
     tu = afs_osi_Alloc(sizeof(struct unixuser));
     osi_Assert(tu != NULL);
 #ifndef AFS_NOSTATS
@@ -440,8 +511,14 @@ afs_GetUser(afs_int32 auid, afs_int32 acell, afs_int32 locktype)
 #endif /* AFS_NOSTATS */
     memset(tu, 0, sizeof(struct unixuser));
     AFS_RWLOCK_INIT(&tu->lock, "unixuser lock");
-    tu->next = afs_users[i];
-    afs_users[i] = tu;
+    /* insert new nu in sorted order after xu */
+    if (xu == NULL) {
+	tu->next = afs_users[i];
+	afs_users[i] = tu;
+    } else {
+	tu->next = xu->next;
+	xu->next = tu;
+    }
     if (RmtUser) {
 	/*
 	 * This is for the case where an additional unixuser struct is
@@ -459,6 +536,7 @@ afs_GetUser(afs_int32 auid, afs_int32 acell, afs_int32 locktype)
     tu->viceId = UNDEFVID;
     tu->refCount = 1;
     tu->tokenTime = osi_Time();
+    /* fall through to return the new one */
 
  done:
     ReleaseWriteLock(&afs_xuser);
