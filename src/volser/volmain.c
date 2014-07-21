@@ -244,7 +244,7 @@ enum optionsList {
     OPT_syslog,
     OPT_logfile,
     OPT_config,
-    OPT_restricted_query
+    OPT_restricted_query,
     OPT_libafsosd,
     OPT_convert
 };
