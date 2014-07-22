@@ -1026,7 +1026,7 @@ afs_linux_revalidate(struct dentry *dp)
         (!afs_fakestat_enable || vcp->mvstat != 1) &&
 	!afs_nfsexporter &&
 	(vType(vcp) == VDIR || vType(vcp) == VLNK)) {
-	code = afs_CopyOutAttrs(vcp, &vattr);
+	code = afs_CopyOutAttrs(vcp, vattr);
     } else {
         credp = crref();
 	code = afs_getattr(vcp, vattr, credp);
