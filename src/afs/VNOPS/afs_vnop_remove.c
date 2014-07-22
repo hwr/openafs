@@ -273,7 +273,6 @@ afs_remove(OSI_VC_DECL(adp), char *aname, afs_ucred_t *acred)
 		if (unlinkFid.Fid.Unique == 0) {
 		    tvc =
 			afs_LookupVCache(&unlinkFid, treq, &cached, adp,
->>>>>>> f63eed308a2def003b9d8d1a98e934c7082b314a
 					 aname);
 		} else {
 		    ObtainReadLock(&afs_xvcache);
