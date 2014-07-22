@@ -257,8 +257,8 @@ struct rx_ops_v0 {
     void (*rx_DestroyConnection) (struct rx_connection *conn);
     afs_int32 (*rx_EndCall) (struct rx_call *call, afs_int32 rc);
     int (*rx_Error) (struct rx_call *call);
-    int (*rx_GetConnectionEpoch) (struct rx_connection *conn);
-    int (*rx_GetConnectionId) (struct rx_connection *conn);
+    afs_uint32 (*rx_GetConnectionEpoch) (struct rx_connection *conn);
+    afs_uint32 (*rx_GetConnectionId) (struct rx_connection *conn);
     void *(*rx_GetSpecific) (struct rx_connection *conn, int key);
     afs_uint32 (*rx_HostOf) (struct rx_peer *peer);
     void (*rx_IncrementTimeAndCount) (struct rx_peer *peer,
@@ -1371,13 +1371,13 @@ rx_Error(struct rx_call *call)
     return (rx->rx_Error)(call);
 }
 
-int
+afs_uint32
 rx_GetConnectionEpoch(struct rx_connection *conn)
 {
     return (rx->rx_GetConnectionEpoch)(conn);
 }
 
-int
+afs_uint32
 rx_GetConnectionId(struct rx_connection *conn)
 {
     return (rx->rx_GetConnectionId)(conn);
