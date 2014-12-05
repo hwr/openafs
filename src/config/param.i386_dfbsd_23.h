@@ -72,7 +72,6 @@
 #ifdef _KERNEL
 #define AFS_GLOBAL_SUNLOCK        1
 #define	AFS_VFS34	1	/* What is VFS34??? */
-#define	AFS_SHORTGID	0	/* are group id's short? */
 #define	afsio_iov	uio_iov
 #define	afsio_iovcnt	uio_iovcnt
 #define	afsio_offset	uio_offset
@@ -170,11 +169,5 @@ enum vcexcl { NONEXCL, EXCL };
 #include <limits.h>
 
 #endif /* !defined(UKERNEL) */
-
-/* general user-space compiles */
-
-#if defined(UKERNEL) || !defined(KERNEL)
-#define STDLIB_HAS_MALLOC_PROTOS 1
-#endif
 
 #endif /* AFS_PARAM_H */

@@ -76,6 +76,9 @@
 #define SYS_NAME_ID_x86_darwin_130       523
 #define SYS_NAME_ID_amd64_darwin_130     524
 #define SYS_NAME_ID_arm_darwin_130       525
+#define SYS_NAME_ID_x86_darwin_140       526
+#define SYS_NAME_ID_amd64_darwin_140     527
+#define SYS_NAME_ID_arm_darwin_140       528
 
 #define SYS_NAME_ID_next_mach20		 601
 #define SYS_NAME_ID_next_mach30		 602
@@ -167,6 +170,7 @@
 #define SYS_NAME_ID_sparc_linux2	1700
 #define SYS_NAME_ID_sparc_linux22	1701
 #define SYS_NAME_ID_sparc_linux24	1702
+#define SYS_NAME_ID_sparc_linux26	1703
 
 #define SYS_NAME_ID_sparc64_linux2	1800
 #define SYS_NAME_ID_sparc64_linux22	1801
@@ -213,7 +217,9 @@
 #define SYS_NAME_ID_i386_fbsd_90        2120
 #define SYS_NAME_ID_i386_fbsd_91        2122
 #define SYS_NAME_ID_i386_fbsd_92        2124
+#define SYS_NAME_ID_i386_fbsd_93        2126
 #define SYS_NAME_ID_i386_fbsd_100      2130
+#define SYS_NAME_ID_i386_fbsd_101      2131
 #define SYS_NAME_ID_i386_fbsd_110      2140
 
 #define SYS_NAME_ID_ia64_linux2		2200
@@ -319,7 +325,9 @@
 #define SYS_NAME_ID_amd64_fbsd_90       3020
 #define SYS_NAME_ID_amd64_fbsd_91       3022
 #define SYS_NAME_ID_amd64_fbsd_92       3023
+#define SYS_NAME_ID_amd64_fbsd_93       3024
 #define SYS_NAME_ID_amd64_fbsd_100     3030
+#define SYS_NAME_ID_amd64_fbsd_101     3031
 #define SYS_NAME_ID_amd64_fbsd_110     3040
 
 #define SYS_NAME_ID_amd64_w2k           3400

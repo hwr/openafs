@@ -272,7 +272,7 @@ main(int argc, char **argv)
 	                "trying to continue anyway\n");
     }
 
-    ts = cmd_CreateSyntax(NULL, handleit, NULL,
+    ts = cmd_CreateSyntax(NULL, handleit, NULL, 0,
 			  "Dump a volume to a 'vos dump' format file without using volserver");
     cmd_AddParm(ts, "-part", CMD_LIST, CMD_OPTIONAL, "AFS partition name");
     cmd_AddParm(ts, "-volumeid", CMD_LIST, CMD_OPTIONAL, "Volume id");
@@ -375,7 +375,19 @@ DumpDumpHeader(int dumpfd, Volume * vp, afs_int32 fromtime)
 	code = DumpString(dumpfd, 'n', V_name(vp));
 
     dumpTimes[0] = fromtime;
-    dumpTimes[1] = V_backupDate(vp);	/* Until the time the clone was made */
+    switch (V_type(vp)) {
+    case readwriteVolume:
+	dumpTimes[1] = V_updateDate(vp);	/* until last update */
+	break;
+    case readonlyVolume:
+	dumpTimes[1] = V_copyDate(vp);		/* until clone was made */
+	break;
+    case backupVolume:
+	dumpTimes[1] = V_backupDate(vp);	/* until backup was made */
+	break;
+    default:
+	code = EINVAL;
+    }
     if (!code)
 	code = DumpArrayInt32(dumpfd, 't', (afs_uint32 *) dumpTimes, 2);
 

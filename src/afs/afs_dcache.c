@@ -2681,11 +2681,7 @@ afs_WriteThroughDSlots(void)
 	 */
 	struct afs_fheader theader;
 
-	theader.magic = AFS_FHMAGIC;
-	theader.firstCSize = AFS_FIRSTCSIZE;
-	theader.otherCSize = AFS_OTHERCSIZE;
-	theader.version = AFS_CI_VERSION;
-	theader.dataSize = sizeof(struct fcache);
+	afs_InitFHeader(&theader);
 	afs_osi_Write(afs_cacheInodep, 0, &theader, sizeof(theader));
     }
     ReleaseWriteLock(&afs_xdcache);
@@ -3115,6 +3111,13 @@ afs_InitCacheFile(char *afile, ino_t ainode)
 	if ((tdc->f.states & DWriting) || tdc->f.fid.Fid.Volume == 0)
 	    fileIsBad = 1;
 	tfile = osi_UFSOpen(&tdc->f.inode);
+	if (!tfile) {
+	    ReleaseWriteLock(&afs_xdcache);
+	    ReleaseWriteLock(&tdc->lock);
+	    afs_PutDCache(tdc);
+	    return ENOENT;
+	}
+
 	code = afs_osi_Stat(tfile, &tstat);
 	if (code)
 	    osi_Panic("initcachefile stat");

@@ -367,7 +367,7 @@ MainCommand(struct cmd_syndesc *as, void *arock)
 		} else {
 		    if (tconn.securityIndex != RX_SECIDX_KAD)
 			continue;
-		    if (withSecStats && (tconn.secStats.type == 3)
+		    if (withSecStats && (tconn.secStats.type == RX_SECTYPE_KAD)
 			&& (tconn.secStats.level != onlyAuth))
 			continue;
 		}
@@ -413,20 +413,20 @@ MainCommand(struct cmd_syndesc *as, void *arock)
 
 	    if (withSecStats) {
 		switch ((int)tconn.secStats.type) {
-		case 0:
+		case RX_SECTYPE_UNK:
 		    if (tconn.securityIndex == RX_SECIDX_KAD)
 			printf
 			    ("  no GetStats procedure for security object\n");
 		    break;
-		case 1:
+		case RX_SECTYPE_NULL:
 		    printf("  rxnull level=%d, flags=%d\n",
 			   tconn.secStats.level, tconn.secStats.flags);
 		    break;
-		case 2:
+		case RX_SECTYPE_VAB:
 		    printf("  rxvab level=%d, flags=%d\n",
 			   tconn.secStats.level, tconn.secStats.flags);
 		    break;
-		case 3:{
+		case RX_SECTYPE_KAD:{
 			char *level;
 			char flags = tconn.secStats.flags;
 			if (tconn.secStats.level == 0)
@@ -597,7 +597,7 @@ main(int argc, char **argv)
     }
 #endif
 
-    ts = cmd_CreateSyntax(NULL, MainCommand, NULL, "probe RX server");
+    ts = cmd_CreateSyntax(NULL, MainCommand, NULL, 0, "probe RX server");
     cmd_AddParm(ts, "-servers", CMD_SINGLE, CMD_REQUIRED, "server machine");
     cmd_AddParm(ts, "-port", CMD_SINGLE, CMD_OPTIONAL, "IP port");
     cmd_AddParm(ts, "-nodally", CMD_FLAG, CMD_OPTIONAL,

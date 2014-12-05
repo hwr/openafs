@@ -13,16 +13,6 @@
 #include "afs/sysincludes.h"	/*Standard vendor system headers */
 #include "afsincludes.h"	/*AFS-based standard headers */
 
-#if defined(AFS_FBSD80_ENV)
-#define ma_vn_lock(vp, flags, p) (vn_lock(vp, flags))
-#define MA_VOP_LOCK(vp, flags, p) (VOP_LOCK(vp, flags))
-#define MA_VOP_UNLOCK(vp, flags, p) (VOP_UNLOCK(vp, flags))
-#else
-#define ma_vn_lock(vp, flags, p) (vn_lock(vp, flags, p))
-#define MA_VOP_LOCK(vp, flags, p) (VOP_LOCK(vp, flags, p))
-#define MA_VOP_UNLOCK(vp, flags, p) (VOP_UNLOCK(vp, flags, p))
-#endif
-
 int
 osi_TryEvictVCache(struct vcache *avc, int *slept, int defersleep)
 {
@@ -47,15 +37,19 @@ osi_TryEvictVCache(struct vcache *avc, int *slept, int defersleep)
     /* must hold the vnode before calling vgone()
      * This code largely copied from vfs_subr.c:vlrureclaim() */
     vholdl(vp);
+
+    ReleaseWriteLock(&afs_xvcache);
     AFS_GUNLOCK();
+
     *slept = 1;
     /* use the interlock while locking, so no one else can DOOM this */
-    ma_vn_lock(vp, LK_INTERLOCK|LK_EXCLUSIVE|LK_RETRY, curthread);
+    vn_lock(vp, LK_INTERLOCK|LK_EXCLUSIVE|LK_RETRY);
     vgone(vp);
-    MA_VOP_UNLOCK(vp, 0, curthread);
+    VOP_UNLOCK(vp, 0);
     vdrop(vp);
 
     AFS_GLOCK();
+    ObtainWriteLock(&afs_xvcache, 340);
     return 1;
 }
 
@@ -77,24 +71,17 @@ osi_PrePopulateVCache(struct vcache *avc) {
 void
 osi_AttachVnode(struct vcache *avc, int seq) {
     struct vnode *vp;
-    struct thread *p = curthread;
 
     ReleaseWriteLock(&afs_xvcache);
     AFS_GUNLOCK();
-#if defined(AFS_FBSD60_ENV)
     if (getnewvnode(MOUNT_AFS, afs_globalVFS, &afs_vnodeops, &vp))
-#else
-    if (getnewvnode(MOUNT_AFS, afs_globalVFS, afs_vnodeop_p, &vp))
-#endif
 	panic("afs getnewvnode");	/* can't happen */
-#ifdef AFS_FBSD70_ENV
     /* XXX verified on 80--TODO check on 7x */
     if (!vp->v_mount) {
-        ma_vn_lock(vp, LK_EXCLUSIVE | LK_RETRY, p); /* !glocked */
+        vn_lock(vp, LK_EXCLUSIVE | LK_RETRY); /* !glocked */
         insmntque(vp, afs_globalVFS);
-        MA_VOP_UNLOCK(vp, 0, p);
+        VOP_UNLOCK(vp, 0);
     }
-#endif
     AFS_GLOCK();
     ObtainWriteLock(&afs_xvcache,339);
     if (avc->v != NULL) {

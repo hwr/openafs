@@ -90,7 +90,7 @@ main(int argc, char *argv[])
     zero_argc = argc;
     zero_argv = argv;
 
-    ts = cmd_CreateSyntax(NULL, CommandProc, NULL,
+    ts = cmd_CreateSyntax(NULL, CommandProc, NULL, 0,
 			  "obtain Kerberos authentication");
 
 #define aXFLAG 0
@@ -268,6 +268,7 @@ CommandProc(struct cmd_syndesc *as, void *arock)
 	    foundExplicitCell = 1;
 	    strncpy(realm, cell, sizeof(realm));
 	}
+	pw->pw_name = name;
     } else {
 	/* No explicit name provided: use Unix uid. */
 	pw = getpwuid(getuid());

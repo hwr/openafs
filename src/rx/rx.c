@@ -73,6 +73,7 @@ extern afs_int32 afs_termState;
 #endif /* KERNEL */
 
 #include <opr/queue.h>
+#include <hcrypto/rand.h>
 
 #include "rx.h"
 #include "rx_clock.h"
@@ -157,6 +158,7 @@ static void rxi_AckAllInTransmitQueue(struct rx_call *call);
 static void rxi_CancelKeepAliveEvent(struct rx_call *call);
 static void rxi_CancelDelayedAbortEvent(struct rx_call *call);
 static void rxi_CancelGrowMTUEvent(struct rx_call *call);
+static void update_nextCid(void);
 
 #ifdef RX_ENABLE_LOCKS
 struct rx_tq_debug {
@@ -254,6 +256,7 @@ extern afs_kmutex_t rx_packets_mutex;
 extern afs_kmutex_t rx_refcnt_mutex;
 extern afs_kmutex_t des_init_mutex;
 extern afs_kmutex_t des_random_mutex;
+#ifndef KERNEL
 extern afs_kmutex_t rx_clock_mutex;
 extern afs_kmutex_t rxi_connCacheMutex;
 extern afs_kmutex_t event_handler_mutex;
@@ -263,6 +266,7 @@ extern afs_kmutex_t rx_if_mutex;
 
 extern afs_kcondvar_t rx_event_handler_cond;
 extern afs_kcondvar_t rx_listener_cond;
+#endif /* !KERNEL */
 
 static afs_kmutex_t epoch_mutex;
 static afs_kmutex_t rx_init_mutex;
@@ -272,24 +276,28 @@ static afs_kmutex_t rx_rpc_stats;
 static void
 rxi_InitPthread(void)
 {
-    MUTEX_INIT(&rx_clock_mutex, "clock", MUTEX_DEFAULT, 0);
-    MUTEX_INIT(&rx_stats_mutex, "stats", MUTEX_DEFAULT, 0);
-    MUTEX_INIT(&rx_atomic_mutex, "atomic", MUTEX_DEFAULT, 0);
     MUTEX_INIT(&rx_quota_mutex, "quota", MUTEX_DEFAULT, 0);
     MUTEX_INIT(&rx_pthread_mutex, "pthread", MUTEX_DEFAULT, 0);
     MUTEX_INIT(&rx_packets_mutex, "packets", MUTEX_DEFAULT, 0);
     MUTEX_INIT(&rx_refcnt_mutex, "refcnts", MUTEX_DEFAULT, 0);
-    MUTEX_INIT(&epoch_mutex, "epoch", MUTEX_DEFAULT, 0);
-    MUTEX_INIT(&rx_init_mutex, "init", MUTEX_DEFAULT, 0);
-    MUTEX_INIT(&event_handler_mutex, "event handler", MUTEX_DEFAULT, 0);
+#ifndef KERNEL
+    MUTEX_INIT(&rx_clock_mutex, "clock", MUTEX_DEFAULT, 0);
     MUTEX_INIT(&rxi_connCacheMutex, "conn cache", MUTEX_DEFAULT, 0);
+    MUTEX_INIT(&event_handler_mutex, "event handler", MUTEX_DEFAULT, 0);
     MUTEX_INIT(&listener_mutex, "listener", MUTEX_DEFAULT, 0);
     MUTEX_INIT(&rx_if_init_mutex, "if init", MUTEX_DEFAULT, 0);
     MUTEX_INIT(&rx_if_mutex, "if", MUTEX_DEFAULT, 0);
+#endif
+    MUTEX_INIT(&rx_stats_mutex, "stats", MUTEX_DEFAULT, 0);
+    MUTEX_INIT(&rx_atomic_mutex, "atomic", MUTEX_DEFAULT, 0);
+    MUTEX_INIT(&epoch_mutex, "epoch", MUTEX_DEFAULT, 0);
+    MUTEX_INIT(&rx_init_mutex, "init", MUTEX_DEFAULT, 0);
     MUTEX_INIT(&rx_debug_mutex, "debug", MUTEX_DEFAULT, 0);
 
+#ifndef KERNEL
     CV_INIT(&rx_event_handler_cond, "evhand", CV_DEFAULT, 0);
     CV_INIT(&rx_listener_cond, "rxlisten", CV_DEFAULT, 0);
+#endif
 
     osi_Assert(pthread_key_create(&rx_thread_id_key, NULL) == 0);
     osi_Assert(pthread_key_create(&rx_ts_info_key, NULL) == 0);
@@ -310,7 +318,9 @@ rxi_InitPthread(void)
     MUTEX_INIT(&rx_connHashTable_lock, "rx_connHashTable_lock", MUTEX_DEFAULT,
 	       0);
     MUTEX_INIT(&rx_serverPool_lock, "rx_serverPool_lock", MUTEX_DEFAULT, 0);
+#ifndef KERNEL
     MUTEX_INIT(&rxi_keyCreate_lock, "rxi_keyCreate_lock", MUTEX_DEFAULT, 0);
+#endif
 #endif /* RX_ENABLE_LOCKS */
 }
 
@@ -394,6 +404,7 @@ struct rx_connection *rxLastConn = 0;
  * tiers:
  *
  * rx_connHashTable_lock - synchronizes conn creation, rx_connHashTable access
+ *                         also protects updates to rx_nextCid
  * conn_call_lock - used to synchonize rx_EndCall and rx_NewCall
  * call->lock - locks call data fields.
  * These are independent of each other:
@@ -439,34 +450,6 @@ static int rxdb_fileID = RXDB_FILE_RX;
 struct rx_serverQueueEntry *rx_waitForPacket = 0;
 
 /* ------------Exported Interfaces------------- */
-
-/* This function allows rxkad to set the epoch to a suitably random number
- * which rx_NewConnection will use in the future.  The principle purpose is to
- * get rxnull connections to use the same epoch as the rxkad connections do, at
- * least once the first rxkad connection is established.  This is important now
- * that the host/port addresses aren't used in FindConnection: the uniqueness
- * of epoch/cid matters and the start time won't do. */
-
-#ifdef AFS_PTHREAD_ENV
-/*
- * This mutex protects the following global variables:
- * rx_epoch
- */
-
-#define LOCK_EPOCH MUTEX_ENTER(&epoch_mutex)
-#define UNLOCK_EPOCH MUTEX_EXIT(&epoch_mutex)
-#else
-#define LOCK_EPOCH
-#define UNLOCK_EPOCH
-#endif /* AFS_PTHREAD_ENV */
-
-void
-rx_SetEpoch(afs_uint32 epoch)
-{
-    LOCK_EPOCH;
-    rx_epoch = epoch;
-    UNLOCK_EPOCH;
-}
 
 /* Initialize rx.  A port number may be mentioned, in which case this
  * becomes the default port number for any service installed later.
@@ -608,12 +591,12 @@ rx_InitHost(u_int host, u_int port)
 #endif
     }
     rx_stats.minRtt.sec = 9999999;
-#ifdef	KERNEL
-    rx_SetEpoch(tv.tv_sec | 0x80000000);
-#else
-    rx_SetEpoch(tv.tv_sec);	/* Start time of this package, rxkad
-				 * will provide a randomer value. */
-#endif
+    if (RAND_bytes(&rx_epoch, sizeof(rx_epoch)) != 1)
+	return -1;
+    rx_epoch  = (rx_epoch & ~0x40000000) | 0x80000000;
+    if (RAND_bytes(&rx_nextCid, sizeof(rx_nextCid)) != 1)
+	return -1;
+    rx_nextCid &= RX_CIDMASK;
     MUTEX_ENTER(&rx_quota_mutex);
     rxi_dataQuota += rx_extraQuota; /* + extra pkts caller asked to rsrv */
     MUTEX_EXIT(&rx_quota_mutex);
@@ -1042,7 +1025,6 @@ rx_NewConnection(afs_uint32 shost, u_short sport, u_short sservice,
 		 int serviceSecurityIndex)
 {
     int hashindex, i;
-    afs_int32 cid;
     struct rx_connection *conn;
 
     SPLVAR;
@@ -1063,10 +1045,10 @@ rx_NewConnection(afs_uint32 shost, u_short sport, u_short sservice,
 #endif
     NETPRI;
     MUTEX_ENTER(&rx_connHashTable_lock);
-    cid = (rx_nextCid += RX_MAXCALLS);
     conn->type = RX_CLIENT_CONNECTION;
-    conn->cid = cid;
     conn->epoch = rx_epoch;
+    conn->cid = rx_nextCid;
+    update_nextCid();
     conn->peer = rxi_FindPeer(shost, sport, 1);
     conn->serviceId = sservice;
     conn->securityObject = securityObject;
@@ -3512,6 +3494,7 @@ rxi_ReceivePacket(struct rx_packet *np, osi_socket socket,
 	addr.sin_family = AF_INET;
 	addr.sin_port = port;
 	addr.sin_addr.s_addr = host;
+	memset(&addr.sin_zero, 0, sizeof(addr.sin_zero));
 #ifdef STRUCT_SOCKADDR_HAS_SA_LEN
 	addr.sin_len = sizeof(addr);
 #endif /* AFS_OSF_ENV */
@@ -5432,6 +5415,7 @@ rxi_ResetCall(struct rx_call *call, int newcall)
     call->rprev = 0;
     call->lastAcked = 0;
     call->localStatus = call->remoteStatus = 0;
+    call->lastSendData = 0;
 
     if (flags & RX_CALL_READER_WAIT) {
 #ifdef	RX_ENABLE_LOCKS
@@ -6523,6 +6507,7 @@ rxi_NatKeepAliveEvent(struct rxevent *event, void *arg1,
     taddr.sin_family = AF_INET;
     taddr.sin_port = rx_PortOf(rx_PeerOf(conn));
     taddr.sin_addr.s_addr = rx_HostOf(rx_PeerOf(conn));
+    memset(&taddr.sin_zero, 0, sizeof(taddr.sin_zero));
 #ifdef STRUCT_SOCKADDR_HAS_SA_LEN
     taddr.sin_len = sizeof(struct sockaddr_in);
 #endif
@@ -6724,6 +6709,19 @@ rxi_CancelGrowMTUEvent(struct rx_call *call)
 	rxevent_Cancel(&call->growMTUEvent);
 	CALL_RELE(call, RX_CALL_REFCOUNT_MTU);
     }
+}
+
+/*
+ * Increment the counter for the next connection ID, handling overflow.
+ */
+static void
+update_nextCid(void)
+{
+    /* Overflow is technically undefined behavior; avoid it. */
+    if (rx_nextCid > MAX_AFS_INT32 - (1 << RX_CIDSHIFT))
+	rx_nextCid = -1 * ((MAX_AFS_INT32 / RX_CIDSHIFT) * RX_CIDSHIFT);
+    else
+	rx_nextCid += 1 << RX_CIDSHIFT;
 }
 
 static void
@@ -7520,6 +7518,7 @@ MakeDebugCall(osi_socket socket, afs_uint32 remoteAddr, afs_uint16 remotePort,
     taddr.sin_family = AF_INET;
     taddr.sin_port = remotePort;
     taddr.sin_addr.s_addr = remoteAddr;
+    memset(&taddr.sin_zero, 0, sizeof(taddr.sin_zero));
 #ifdef STRUCT_SOCKADDR_HAS_SA_LEN
     taddr.sin_len = sizeof(struct sockaddr_in);
 #endif
@@ -7950,7 +7949,7 @@ shutdown_rx(void)
     rxi_StopListener();
 #endif /* AFS_PTHREAD_ENV */
     shutdown_rxevent();
-    rx_SetEpoch(0);
+    rx_epoch = 0;
 #ifndef AFS_PTHREAD_ENV
 #ifndef AFS_USE_GETTIMEOFDAY
     clock_UnInit();

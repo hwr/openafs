@@ -18,7 +18,6 @@
 
 /* syndesc flags */
 #define	CMD_ALIAS	1	/* this is an alias */
-#define CMD_ADMIN       2	/* admin. command, show only with -admin */
 #define CMD_HIDDEN      4	/* A hidden command - similar to CMD_HIDE */
 
 #define CMD_HELPPARM	(CMD_MAXPARMS-1)	/* last one is used by -help switch */
@@ -57,14 +56,14 @@ struct cmd_syndesc {
     int (*proc) (struct cmd_syndesc * ts, void *arock);
     void *rock;
     int nParms;			/* number of parms */
-    afs_int32 flags;		/* random flags */
+    afs_uint32 flags;		/* random flags */
     struct cmd_parmdesc parms[CMD_MAXPARMS];	/* parms themselves */
 };
 
 extern struct cmd_syndesc *cmd_CreateSyntax(char *namep,
 					    int (*aprocp) (struct cmd_syndesc
 							   * ts, void *arock),
-					    void *rockp, char *helpp);
+					    void *rockp, afs_uint32 aflags, char *helpp);
 extern int
   cmd_SetBeforeProc(int (*aproc) (struct cmd_syndesc * ts, void *beforeRock),
 		    void *arock);
@@ -82,7 +81,6 @@ extern int cmd_Dispatch(int argc, char **argv);
 extern int cmd_FreeArgv(char **argv);
 extern int cmd_ParseLine(char *aline, char **argv, afs_int32 * an,
 			 afs_int32 amaxn);
-extern int cmd_IsAdministratorCommand(struct cmd_syndesc *as);
 extern void cmd_DisablePositionalCommands(void);
 extern void cmd_DisableAbbreviations(void);
 extern void PrintSyntax(struct cmd_syndesc *as);

@@ -26,8 +26,6 @@
 #include "afs/auth.h"
 #include "afs/cellconfig.h"
 #include "afs/vice.h"
-#include "afs/kauth.h"
-#include "afs/kautils.h"
 #include "afs/afsutil.h"
 #include "afs/afs_bypasscache.h"
 #include "rx/rx_globals.h"
@@ -94,15 +92,11 @@ afs_lock_t afs_ftf;
 afs_lock_t osi_flplock;
 afs_lock_t osi_fsplock;
 
-#ifndef NETSCAPE_NSAPI
-
 /*
  * Mutex and condition variable used to implement sleep
  */
 pthread_mutex_t usr_sleep_mutex;
 pthread_cond_t usr_sleep_cond;
-
-#endif /* !NETSCAPE_NSAPI */
 
 int call_syscall(long, long, long, long, long, long);
 int fork_syscall(long, long, long, long, long, long);
@@ -1054,14 +1048,12 @@ osi_Init(void)
     afs_global_procp->p_ppid = (pid_t) 1;
     afs_global_procp->p_ucred = afs_global_ucredp;
 
-#ifndef NETSCAPE_NSAPI
     /*
      * Initialize the mutex and condition variable used to implement
      * time sleeps.
      */
     pthread_mutex_init(&usr_sleep_mutex, NULL);
     pthread_cond_init(&usr_sleep_cond, NULL);
-#endif /* !NETSCAPE_NSAPI */
 
     /*
      * Initialize the hash table used for sleep/wakeup
@@ -1386,13 +1378,8 @@ struct syscallThreadArgs {
     long param4;
 };
 
-#ifdef NETSCAPE_NSAPI
-void
-syscallThread(void *argp)
-#else /* NETSCAPE_NSAPI */
 void *
 syscallThread(void *argp)
-#endif				/* NETSCAPE_NSAPI */
 {
     int i;
     struct usr_ucred *crp;
@@ -3066,7 +3053,7 @@ uafs_symlink_r(char *target, char *source)
     attrs.va_uid = afs_cr_uid(get_user_struct()->u_cred);
     attrs.va_gid = afs_cr_gid(get_user_struct()->u_cred);
     code = afs_symlink(VTOAFS(dirP), nameP, &attrs, target, NULL,
-    		       get_user_struct()->u_cred);
+		       get_user_struct()->u_cred);
     VN_RELE(dirP);
     if (code != 0) {
 	errno = code;

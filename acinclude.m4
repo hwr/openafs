@@ -14,7 +14,7 @@ AH_BOTTOM([
 #   include <sys/types.h>
 #   include <sys/param.h>
 #   if BYTE_ORDER == BIG_ENDIAN
-#   define WORDS_BIGENDIAN 1
+#    define WORDS_BIGENDIAN 1
 #   endif
 #  else
 #   if defined(AUTOCONF_FOUND_BIGENDIAN)
@@ -44,8 +44,8 @@ AH_BOTTOM([
  * need to define this when building for such interfaces, but set it always to
  * try and reduce potential confusion. 
  */
-#define _FILE_OFFSET_BITS 64
-#define AFS_CACHE_VNODE_PATH
+# define _FILE_OFFSET_BITS 64
+# define AFS_CACHE_VNODE_PATH
 #endif
 
 #undef AFS_NAMEI_ENV
@@ -62,7 +62,7 @@ AH_BOTTOM([
 /* glue for RedHat kernel bug */
 #undef ENABLE_REDHAT_BUILDSYS
 #if defined(ENABLE_REDHAT_BUILDSYS) && defined(KERNEL) && defined(REDHAT_FIX)
-#include "redhat-fix.h"
+# include "redhat-fix.h"
 #endif])
 
 AC_CANONICAL_HOST
@@ -72,128 +72,134 @@ SRCDIR_PARENT=`pwd`
 
 dnl System identity.
 AC_ARG_WITH([afs-sysname],
-    [AS_HELP_STRING([--with-afs-sysname=sys], [use sys for the afs sysname])])
+    [AS_HELP_STRING([--with-afs-sysname=sys], [use sys for the afs sysname])
+])
 
 dnl General feature options.
-AC_ARG_ENABLE([pam],
-    [AS_HELP_STRING([--disable-pam], [disable PAM support])],
-    ,
-    [enable_pam="yes"])
 AC_ARG_ENABLE([gtx],
-    AS_HELP_STRING([--disable-gtx], [disable gtx curses-based terminal tools]))
+    [AS_HELP_STRING([--disable-gtx], [disable gtx curses-based terminal tools])])
+
 AC_ARG_ENABLE([uss],
-    AS_HELP_STRING([--disable-uss], [disable uss bulk creation tool]))
+    [AS_HELP_STRING([--disable-uss], [disable uss bulk creation tool])])
 AC_ARG_ENABLE([namei-fileserver],
     [AS_HELP_STRING([--enable-namei-fileserver],
-        [force compilation of namei fileserver in preference to inode
-         fileserver])],
-    , 
+	[force compilation of namei fileserver in preference to inode
+	 fileserver])],
+    [],
     [enable_namei_fileserver="default"])
 AC_ARG_ENABLE([supergroups],
     [AS_HELP_STRING([--enable-supergroups],
-        [enable support for nested pts groups])],
-    , 
+	[enable support for nested pts groups])],
+    [],
     [enable_supergroups="no"])
 AC_ARG_ENABLE([bitmap-later],
     [AS_HELP_STRING([--enable-bitmap-later],
         [enable fast startup of file server by not reading bitmap till
          needed])],
-    , 
+    [AS_IF([test x"$withval" = xyes],
+        [AC_MSG_WARN([bitmap-later is only used by non-demand-attach
+            fileservers.  Please migrate to demand-attach instead.])])],
     [enable_bitmap_later="no"])
 AC_ARG_ENABLE([unix-sockets],
     [AS_HELP_STRING([--disable-unix-sockets],
-        [disable use of unix domain sockets for fssync (defaults to enabled)])],
-    ,
+	[disable use of unix domain sockets for fssync (defaults to enabled)])],
+    [],
     [enable_unix_sockets="yes"])
 AC_ARG_ENABLE([tivoli-tsm],
     [AS_HELP_STRING([--enable-tivoli-tsm],
-        [enable use of the Tivoli TSM API libraries for butc support])],
-    , 
+	[enable use of the Tivoli TSM API libraries for butc support])],
+    [],
     [enable_tivoli_tsm="no"])
 AC_ARG_ENABLE([pthreaded-ubik],
-    [AS_HELP_STRING([--enable-pthreaded-ubik],
-        [enable installation of pthreaded ubik applications (defaults to
-         disabled)])],
-    ,
-    [enable_pthreaded_ubik="no"])
+    [AS_HELP_STRING([--disable-pthreaded-ubik],
+        [disable installation of pthreaded ubik applications (defaults to
+         enabled)])],
+    [],
+    [enable_pthreaded_ubik="yes"])
 
 dnl Kernel module build options.
 AC_ARG_WITH([linux-kernel-headers],
     [AS_HELP_STRING([--with-linux-kernel-headers=path],
-        [use the kernel headers found at path (optional, defaults to
-         /lib/modules/`uname -r`/build, then /lib/modules/`uname -r`/source,
-         then /usr/src/linux-2.4, and lastly /usr/src/linux)])])
+	[use the kernel headers found at path (optional, defaults to
+	 /lib/modules/`uname -r`/build, then /lib/modules/`uname -r`/source,
+	 then /usr/src/linux-2.4, and lastly /usr/src/linux)])
+])
 AC_ARG_WITH([linux-kernel-build],
     [AS_HELP_STRING([--with-linux-kernel-build=path],
-	[use the kernel build found at path(optional, defaults to 
-	kernel headers path)])])
+	[use the kernel build found at path(optional, defaults to
+	kernel headers path)]
+)])
 AC_ARG_WITH([bsd-kernel-headers],
     [AS_HELP_STRING([--with-bsd-kernel-headers=path],
-        [use the kernel headers found at path (optional, defaults to
-         /usr/src/sys)])])
+	[use the kernel headers found at path (optional, defaults to
+	 /usr/src/sys)])
+])
 AC_ARG_WITH([bsd-kernel-build],
-    [AS_HELP_STRING([--with-bsd-kernel-build=path], 
-        [use the kernel build found at path (optional, defaults to
-         KSRC/i386/compile/GENERIC)])])
+    [AS_HELP_STRING([--with-bsd-kernel-build=path],
+	[use the kernel build found at path (optional, defaults to
+	 KSRC/i386/compile/GENERIC)])
+])
 AC_ARG_WITH([linux-kernel-packaging],
     [AS_HELP_STRING([--with-linux-kernel-packaging],
-        [use standard naming conventions to aid Linux kernel build packaging
-         (disables MPS, sets the kernel module name to openafs.ko, and
-         installs kernel modules into the standard Linux location)])],
-    [AC_SUBST(LINUX_KERNEL_PACKAGING, "yes")
-     AC_SUBST(LINUX_LIBAFS_NAME, "openafs")],
-    [AC_SUBST(LINUX_LIBAFS_NAME, "libafs")])
+	[use standard naming conventions to aid Linux kernel build packaging
+	 (disables MPS, sets the kernel module name to openafs.ko, and
+	 installs kernel modules into the standard Linux location)])],
+    [AC_SUBST([LINUX_KERNEL_PACKAGING], [yes])
+     AC_SUBST([LINUX_LIBAFS_NAME], [openafs])],
+    [AC_SUBST([LINUX_LIBAFS_NAME], [libafs])
+])
 AC_ARG_ENABLE([kernel-module],
     [AS_HELP_STRING([--disable-kernel-module],
-        [disable compilation of the kernel module (defaults to enabled)])],
-    , 
+	[disable compilation of the kernel module (defaults to enabled)])],
+    [],
     [enable_kernel_module="yes"])
 AC_ARG_ENABLE([redhat-buildsys],
     [AS_HELP_STRING([--enable-redhat-buildsys],
-        [enable compilation of the redhat build system kernel (defaults to
-         disabled)])],
-    ,
+	[enable compilation of the redhat build system kernel (defaults to
+	 disabled)])],
+    [],
     [enable_redhat_buildsys="no"])
 
 dnl Installation locations.
 AC_ARG_ENABLE([transarc-paths],
     [AS_HELP_STRING([--enable-transarc-paths],
-        [use Transarc style paths like /usr/afs and /usr/vice])],
-    , 
+	[use Transarc style paths like /usr/afs and /usr/vice])],
+    [],
     [enable_transarc_paths="no"])
 
 dnl Deprecated crypto
 AC_ARG_ENABLE([kauth],
     [AS_HELP_STRING([--enable-kauth],
-        [install the deprecated kauth server and utilities (defaults to
-         disabled)])],
-    ,
-    [enable_kauth="no"])
+        [install the deprecated kauth server, pam modules, and utilities
+         (defaults to disabled)])],
+    [enable_pam="yes"],
+    [enable_kauth="no"
+     enable_pam="no"])
 
 dnl Optimization and debugging flags.
 AC_ARG_ENABLE([strip-binaries],
     [AS_HELP_STRING([--disable-strip-binaries],
-        [disable stripping of symbol information from binaries (defaults to
-         enabled)])],
-    ,
+	[disable stripping of symbol information from binaries (defaults to
+	 enabled)])],
+    [],
     [enable_strip_binaries="maybe"])
 AC_ARG_ENABLE([debug],
     [AS_HELP_STRING([--enable-debug],
-        [enable compilation of the user space code with debugging information
-         (defaults to disabled)])],
-    , 
+	[enable compilation of the user space code with debugging information
+	 (defaults to disabled)])],
+    [],
     [enable_debug="no"])
 AC_ARG_ENABLE([optimize],
     [AS_HELP_STRING([--disable-optimize],
-        [disable optimization for compilation of the user space code (defaults
-         to enabled)])],
-    , 
+	[disable optimization for compilation of the user space code (defaults
+	 to enabled)])],
+    [],
     [enable_optimize="yes"])
 AC_ARG_ENABLE([warnings],
     [AS_HELP_STRING([--enable-warnings],
-        [enable compilation warnings when building with gcc (defaults to
-         disabled)])],
-    ,
+	[enable compilation warnings when building with gcc (defaults to
+	 disabled)])],
+    [],
     [enable_warnings="no"])
 AC_ARG_ENABLE([checking],
     [AS_HELP_STRING([--enable-checking],
@@ -208,56 +214,58 @@ AC_ARG_ENABLE([debug-locks],
     [enable_debug_locks="no"])
 AC_ARG_ENABLE([debug-kernel],
     [AS_HELP_STRING([--enable-debug-kernel],
-        [enable compilation of the kernel module with debugging information
-         (defaults to disabled)])],
-    ,
+	[enable compilation of the kernel module with debugging information
+	 (defaults to disabled)])],
+    [],
     [enable_debug_kernel="no"])
 AC_ARG_ENABLE([optimize-kernel],
     [AS_HELP_STRING([--disable-optimize-kernel],
-        [disable compilation of the kernel module with optimization (defaults
-         based on platform)])],
-    , 
+	[disable compilation of the kernel module with optimization (defaults
+	 based on platform)])],
+    [],
     [enable_optimize_kernel=""])
 AC_ARG_ENABLE([debug-lwp],
     [AS_HELP_STRING([--enable-debug-lwp],
-        [enable compilation of the LWP code with debugging information
-         (defaults to disabled)])],
-    ,
+	[enable compilation of the LWP code with debugging information
+	 (defaults to disabled)])],
+    [],
     [enable_debug_lwp="no"])
 AC_ARG_ENABLE([optimize-lwp],
     [AS_HELP_STRING([--disable-optimize-lwp],
-        [disable optimization for compilation of the LWP code (defaults to
-         enabled)])],
-    ,
+	[disable optimization for compilation of the LWP code (defaults to
+	 enabled)])],
+    [],
     [enable_optimize_lwp="yes"])
 AC_ARG_ENABLE([debug-pam],
     [AS_HELP_STRING([--enable-debug-pam],
-        [enable compilation of the PAM code with debugging information
-         (defaults to disabled)])],
-    ,
+	[enable compilation of the PAM code with debugging information
+	 (defaults to disabled)])],
+    [],
     [enable_debug_pam="no"])
 AC_ARG_ENABLE([optimize-pam],
     [AS_HELP_STRING([--disable-optimize-pam],
-        [disable optimization for compilation of the PAM code (defaults to
-         enabled)])],
-    ,
+	[disable optimization for compilation of the PAM code (defaults to
+	 enabled)])],
+    [],
     [enable_optimize_pam="yes"])
 AC_ARG_ENABLE([linux-syscall-probing],
     [AS_HELP_STRING([--enable-linux-syscall-probing],
 	[enable Linux syscall probing (defaults to autodetect)])],
-    ,
+    [],
     [enable_linux_syscall_probing="maybe"])
 AC_ARG_WITH([crosstools-dir],
-    [AS_HELP_STRING([--with-crosstools-dir=path], [use path for native versions of rxgen, compile_et and config])])
-    
+    [AS_HELP_STRING([--with-crosstools-dir=path],
+	[use path for native versions of rxgen, compile_et and config])
+])
+
 AC_ARG_WITH([xslt-processor],
 	AS_HELP_STRING([--with-xslt-processor=ARG],
 	[which XSLT processor to use (possible choices are: libxslt, saxon, xalan-j, xsltproc)]),
-       	[XSLTPROC="$withval"],
-	AC_CHECK_PROGS([XSLTPROC], [libxslt saxon xalan-j xsltproc], [echo]))
+	[XSLTPROC="$withval"],
+	[AC_CHECK_PROGS([XSLTPROC], [libxslt saxon xalan-j xsltproc], [echo])])
 
-AC_ARG_WITH([html-xsl], 
-        AS_HELP_STRING([--with-html-xsl],
+AC_ARG_WITH([html-xsl],
+	AS_HELP_STRING([--with-html-xsl],
 	[build HTML documentation using this stylesheet (default is html/chunk.dsl; specify either html/chunk.xsl or html/docbook.xsl)]),
 	[HTML_XSL="$withval"],
 	[HTML_XSL="html/chunk.xsl"])
@@ -265,17 +273,29 @@ AC_ARG_WITH([html-xsl],
 AC_ARG_WITH([docbook2pdf],
 	AS_HELP_STRING([--with-docbook2pdf=ARG],
 	[which Docbook to PDF utility to use (possible choices are: fop, dblatex, docbook2pdf)]),
-       	[DOCBOOK2PDF="$withval"],
-	AC_CHECK_PROGS([DOCBOOK2PDF], [fop dblatex docbook2pdf], [echo]))
+	[DOCBOOK2PDF="$withval"],
+	[AC_CHECK_PROGS([DOCBOOK2PDF], [fop dblatex docbook2pdf], [echo])])
 
 AC_ARG_WITH([docbook-stylesheets],
 	AS_HELP_STRING([--with-docbook-stylesheets=ARG],
 	[location of DocBook stylesheets (default is to search a set of likely paths)]),
-       	[DOCBOOK_STYLESHEETS="$withval"],
-	OPENAFS_SEARCH_DIRLIST([DOCBOOK_STYLESHEETS], [/usr/share/xml/docbook/stylesheet/nwalsh/current /usr/share/xml/docbook/stylesheet/nwalsh /usr/share/xml/docbook/xsl-stylesheets /usr/share/sgml/docbook/docbook-xsl-stylesheets /usr/share/sgml/docbook/xsl-stylesheets /usr/share/docbook-xsl /usr/share/sgml/docbkxsl /usr/local/share/xsl/docbook /sw/share/xml/xsl/docbook-xsl /opt/local/share/xsl/docbook-xsl], [$HTML_XSL])
-	if test "x$DOCBOOK_STYLESHEETS" = "x"; then
-		AC_WARN([Docbook stylesheets not found; some documentation can't be built])
-	fi)
+	[DOCBOOK_STYLESHEETS="$withval"],
+	[OPENAFS_SEARCH_DIRLIST([DOCBOOK_STYLESHEETS],
+		[/usr/share/xml/docbook/stylesheet/nwalsh/current \
+		 /usr/share/xml/docbook/stylesheet/nwalsh \
+		 /usr/share/xml/docbook/xsl-stylesheets \
+		 /usr/share/sgml/docbook/docbook-xsl-stylesheets \
+		 /usr/share/sgml/docbook/xsl-stylesheets \
+		 /usr/share/docbook-xsl \
+		 /usr/share/sgml/docbkxsl \
+		 /usr/local/share/xsl/docbook \
+		 /sw/share/xml/xsl/docbook-xsl \
+		 /opt/local/share/xsl/docbook-xsl],
+		[$HTML_XSL])
+	   AS_IF([test "x$DOCBOOK_STYLESHEETS" = "x"],
+		[AC_WARN([Docbook stylesheets not found; some documentation can't be built])
+	   ])
+	])
 
 AC_ARG_WITH([dot],
 	AS_HELP_STRING([--with-dot@<:@=PATH@:>@],
@@ -633,14 +653,22 @@ else
 			AFS_SYSNAME="x86_darwin_120"
 			OSXSDK="macosx10.8"
 			;;
-                x86_64-apple-darwin13.*)
-                        AFS_SYSNAME="x86_darwin_130"
-                        OSXSDK="macosx10.9"
-                        ;;
-                i?86-apple-darwin13.*)
-                        AFS_SYSNAME="x86_darwin_130"
-                        OSXSDK="macosx10.9"
-                        ;;
+		x86_64-apple-darwin13.*)
+			AFS_SYSNAME="x86_darwin_130"
+			OSXSDK="macosx10.9"
+			;;
+		i?86-apple-darwin13.*)
+			AFS_SYSNAME="x86_darwin_130"
+			OSXSDK="macosx10.9"
+			;;
+		x86_64-apple-darwin14.*)
+			AFS_SYSNAME="x86_darwin_140"
+			OSXSDK="macosx10.10"
+			;;
+		i?86-apple-darwin14.*)
+			AFS_SYSNAME="x86_darwin_140"
+			OSXSDK="macosx10.10"
+			;;
 		sparc-sun-solaris2.8)
 			AFS_SYSNAME="sun4x_58"
 			;;
@@ -676,6 +704,7 @@ else
 			;;
 		mips-sgi-irix6.5)
 			AFS_SYSNAME="sgi_65"
+			enable_pam="no"
 			;;
 		ia64-*-linux*)
 			AFS_SYSNAME="ia64_linuxXX"
@@ -818,6 +847,7 @@ case $AFS_SYSNAME in
     *_linux_22) AFS_PARAM_COMMON=param.linux22.h ;;
     *_linux_24) AFS_PARAM_COMMON=param.linux24.h ;;
     *_linux_26) AFS_PARAM_COMMON=param.linux26.h ;;
+    *_fbsd_*)   AFS_PARAM_COMMON=param.generic_fbsd.h ;;
 esac
 
 OPENAFS_OSCONF
@@ -881,8 +911,9 @@ case $AFS_SYSNAME in *_linux* | *_umlinux*)
 		 AC_CHECK_LINUX_STRUCT([file_operations], [sendfile], [fs.h])
 		 AC_CHECK_LINUX_STRUCT([file_system_type], [mount], [fs.h])
 		 AC_CHECK_LINUX_STRUCT([inode_operations], [truncate], [fs.h])
-		 AC_CHECK_LINUX_STRUCT([key_type], [preparse], [key-type.h])
 		 AC_CHECK_LINUX_STRUCT([key_type], [instantiate_prep], [key-type.h])
+		 AC_CHECK_LINUX_STRUCT([key_type], [match_preparse], [key-type.h])
+		 AC_CHECK_LINUX_STRUCT([key_type], [preparse], [key-type.h])
 		 AC_CHECK_LINUX_STRUCT([nameidata], [path], [namei.h])
 		 AC_CHECK_LINUX_STRUCT([proc_dir_entry], [owner], [proc_fs.h])
 		 AC_CHECK_LINUX_STRUCT([super_block], [s_bdi], [fs.h])
@@ -1064,6 +1095,7 @@ case $AFS_SYSNAME in *_linux* | *_umlinux*)
 		 LINUX_IOP_I_CREATE_TAKES_BOOL
 		 LINUX_DOP_D_REVALIDATE_TAKES_UNSIGNED
 		 LINUX_IOP_LOOKUP_TAKES_UNSIGNED
+		 LINUX_D_INVALIDATE_IS_VOID
 
 		 dnl If we are guaranteed that keyrings will work - that is
 		 dnl  a) The kernel has keyrings enabled
@@ -1489,16 +1521,8 @@ if test "$enable_debug_locks" = yes; then
 	AC_DEFINE(OPR_DEBUG_LOCKS, 1, [turn on lock debugging in opr])
 fi
 
-dnl Don't build PAM on IRIX; the interface doesn't work for us.
 if test "$ac_cv_header_security_pam_modules_h" = yes -a "$enable_pam" = yes; then
-        case $AFS_SYSNAME in
-        sgi_*)
-                HAVE_PAM="no"
-                ;;
-        *)
-	        HAVE_PAM="yes"
-                ;;
-        esac
+	HAVE_PAM="YES"
 else
 	HAVE_PAM="no"
 fi
@@ -1560,6 +1584,7 @@ AC_CHECK_FUNCS([ \
 ])
 
 OPENAFS_ROKEN()
+OPENAFS_HCRYPTO()
 OPENAFS_C_ATTRIBUTE()
 
 dnl Functions that Heimdal's libroken provides, but that we
@@ -1570,8 +1595,6 @@ AC_CHECK_FUNCS([ \
 	gethostname \
 	lstat \
 	inet_aton \
-	inet_ntop \
-	inet_pton \
 	putenv \
 	readv \
 	setenv \
@@ -1609,6 +1632,8 @@ AC_REPLACE_FUNCS([ \
 	getopt \
 	getprogname \
 	gettimeofday \
+	inet_ntop \
+	inet_pton \
 	localtime_r \
 	mkstemp \
 	setenv \
@@ -1980,12 +2005,6 @@ OPENAFS_HAVE_STRUCT_FIELD(struct rusage, ru_idrss,
 [#ifdef HAVE_SYS_RESOURCE_H
 #include <sys/resource.h>
 #endif])
-
-dnl Eventually, this will look for the system one, or for OpenSSL
-LIB_hcrypto="-lafshcrypto"
-LDFLAGS_hcrypto="-L\$(TOP_LIBDIR)"
-AC_SUBST(LIB_hcrypto)
-AC_SUBST(LDFLAGS_hcrypto)
 
 dnl Check for UUID library
 AC_CHECK_HEADERS([uuid/uuid.h])

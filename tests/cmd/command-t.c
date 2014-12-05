@@ -99,7 +99,7 @@ main(int argc, char **argv)
 
     initialize_CMD_error_table();
 
-    opts = cmd_CreateSyntax(NULL, testproc, NULL, NULL);
+    opts = cmd_CreateSyntax(NULL, testproc, NULL, 0, NULL);
     cmd_AddParm(opts, "-flag", CMD_FLAG, CMD_OPTIONAL, "a flag");
     cmd_AddParm(opts, "-first", CMD_SINGLE, CMD_REQUIRED, "first option");
     cmd_AddParm(opts, "-second", CMD_LIST, CMD_OPTIONAL, "second option");
@@ -362,12 +362,17 @@ main(int argc, char **argv)
     /* Now, try adding a configuration file into the mix */
     if (getenv("SOURCE") == NULL)
 	path = strdup("test1.conf");
-    else
-	asprintf(&path, "%s/cmd/test1.conf", getenv("SOURCE"));
-
-    cmd_SetCommandName("test");
-    code = cmd_OpenConfigFile(path);
-    is_int(0, code, "cmd_OpenConfigFile succeeds");
+    else {
+	if (asprintf(&path, "%s/cmd/test1.conf", getenv("SOURCE")) < 0)
+	    path = NULL;
+    }
+    if (path != NULL) {
+	cmd_SetCommandName("test");
+	code = cmd_OpenConfigFile(path);
+	is_int(0, code, "cmd_OpenConfigFile succeeds");
+    } else {
+	skip("no memory to build config file path");
+    }
 
     code = cmd_ParseLine("-first 1", tv, &tc, 100);
     is_int(0, code, "cmd_ParseLine succeeds");

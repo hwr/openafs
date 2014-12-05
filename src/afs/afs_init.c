@@ -335,6 +335,17 @@ afs_InitVolumeInfo(char *afile)
     return 0;
 }
 
+void
+afs_InitFHeader(struct afs_fheader *aheader)
+{
+    memset(aheader, 0, sizeof(*aheader));
+    aheader->magic = AFS_FHMAGIC;
+    aheader->version = AFS_CI_VERSION;
+    aheader->dataSize = sizeof(struct fcache);
+    aheader->firstCSize = AFS_FIRSTCSIZE;
+    aheader->otherCSize = AFS_OTHERCSIZE;
+}
+
 /*
  * afs_InitCacheInfo
  *
@@ -349,7 +360,7 @@ afs_InitVolumeInfo(char *afile)
  *
  * Environment:
  *	This function is called only during initialization.  The given
- *	file should NOT be truncated to 0 lenght; its contents descrebe
+ *	file should NOT be truncated to 0 length; its contents describe
  *	what data is really in the cache.
  *
  *	WARNING: data will be written to this file over time by AFS.
@@ -472,6 +483,9 @@ afs_InitCacheInfo(char *afile)
 	afs_fsfragsize = AFS_MIN_FRAGSIZE;
     }
     tfile = osi_UFSOpen(&cacheInode);
+    if (!tfile)
+	return ENOENT;
+
     afs_osi_Stat(tfile, &tstat);
     cacheInfoModTime = tstat.mtime;
     code = afs_osi_Read(tfile, -1, &theader, sizeof(theader));
@@ -487,11 +501,7 @@ afs_InitCacheInfo(char *afile)
     }
     if (!goodFile) {
 	/* write out a good file label */
-	theader.magic = AFS_FHMAGIC;
-	theader.firstCSize = AFS_FIRSTCSIZE;
-	theader.otherCSize = AFS_OTHERCSIZE;
-	theader.dataSize = sizeof(struct fcache);
-	theader.version = AFS_CI_VERSION;
+	afs_InitFHeader(&theader);
 	afs_osi_Write(tfile, 0, &theader, sizeof(theader));
 	/*
 	 * Truncate the rest of the file, since it may be arbitrarily

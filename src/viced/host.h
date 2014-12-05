@@ -52,47 +52,45 @@ struct Interface {
     /* in network byte order */
 };
 
-struct host {
+struct host_to_zero {
     struct host *next, *prev;	/* linked list of all hosts */
     struct rx_connection *callback_rxcon;	/* rx callback connection */
-    afs_uint32 refCount; /* reference count */
-    afs_uint32 host;		/* IP address of host interface that is
+    afs_uint32 refCount;     	/* reference count */
+    afs_uint32 host;	 	/* IP address of host interface that is
 				 * currently being used, in network
 				 * byte order */
     afs_uint16 port;		/* port address of host */
     char Console;		/* XXXX This host is a console */
-    unsigned short hostFlags;		/*  bit map */
-    char InSameNetwork;		/*Is host's addr in the same network as
+    unsigned short hostFlags;	/*  bit map */
+    char InSameNetwork;		/* Is host's addr in the same network as
 				 * the File Server's? */
-    char dummy[3];		/* for padding */
-    char hcpsfailed;		/* Retry the cps call next time */
+    char hcpsfailed;	 	/* Retry the cps call next time */
     prlist hcps;		/* cps for hostip acls */
     afs_uint32 LastCall;	/* time of last call from host */
     afs_uint32 ActiveCall;	/* time of any call but gettime,
-                                   getstats and getcaps */
+				 * getstats and getcaps */
     struct client *FirstClient;	/* first connection from host */
-    afs_uint32 cpsCall;		/* time of last cps call from this host */
-    struct Interface *interface;	/* all alternate addr for client */
-    afs_uint32 cblist;		/* index of a cb in the per-host circular CB list */
-    /*
-     * These don't get zeroed, keep them at the end. If index doesn't
-     * follow an unsigned short then we need to pad to ensure that
-     * the index fields isn't zeroed. XXX
-     */
-    afs_uint32 index;		/* Host table index, for vicecb.c */
-    unsigned int n_tmays;       /* how many successful TellMeAboutYourself calls
-                                 * have we made against this host? */
+    afs_uint32 cpsCall;	 	/* time of last cps call from this host */
+    struct Interface *interface;/* all alternate addr for client */
+    afs_uint32 cblist;	 	/* index of a cb in the per-host circular CB
+				 * list */
+
+    unsigned int n_tmays;    	/* how many successful TellMeAboutYourself
+				 * calls have we made against this host? */
+
     /* cache of the result of the last successful TMAY call to this host */
     struct interfaceAddr tmay_interf;
     Capabilities tmay_caps;
+};
 
+struct host {
+    struct host_to_zero z;
+
+    afs_uint32 index;		/* Host table index, for vicecb.c */
     struct Lock lock;		/* Write lock for synchronization of
 				 * VenusDown flag */
     pthread_cond_t cond;	/* used to wait on hcpsValid */
 };
-
-/* * Don't zero the index, lock or condition varialbles */
-#define HOST_TO_ZERO(H) (int)(((char *)(&((H)->index))-(char *)(H)))
 
 struct h_AddrHashChain {
     struct host *hostPtr;
@@ -106,7 +104,7 @@ struct h_UuidHashChain {
     struct h_UuidHashChain *next;
 };
 
-struct client {
+struct client_to_zero {
     struct client *next;	/* next client entry for host */
     struct host *host;		/* ptr to parent host entry */
     afs_int32 sid;		/* Connection number from this host */
@@ -126,12 +124,13 @@ struct client {
     char prfail;		/* True if prserver couldn't be contacted */
     char InSameNetwork;		/* Is client's IP address in the same
 				 * network as ours? */
+};
+
+struct client {
+    struct client_to_zero z;
     struct Lock lock;		/* lock to ensure CPS valid if entry
 				 * on host's clients list. */
 };
-
-/* Don't zero the lock */
-#define CLIENT_TO_ZERO(C)	((int)(((char *)(&((C)->lock))-(char *)(C))))
 
 
 /*
@@ -161,33 +160,33 @@ extern int h_Lock_r(struct host *host);
 
 #define h_Hold_r(x) \
 do { \
-	++((x)->refCount); \
+	++((x)->z.refCount); \
 } while(0)
 
 #define h_Decrement_r(x) \
 do { \
-	--((x)->refCount); \
+	--((x)->z.refCount); \
 } while (0)
 
 #define h_Release_r(x) \
 do { \
 	h_Decrement_r(x); \
-	if (((x)->refCount < 1) && \
-		(((x)->hostFlags & HOSTDELETED) || \
-		 ((x)->hostFlags & CLIENTDELETED))) h_TossStuff_r((x));	 \
+	if (((x)->z.refCount < 1) && \
+		(((x)->z.hostFlags & HOSTDELETED) || \
+		 ((x)->z.hostFlags & CLIENTDELETED))) h_TossStuff_r((x));	 \
 } while(0)
 
 /* operations on the global linked list of hosts */
-#define h_InsertList_r(h) 	(h)->next =  hostList;			\
-				(h)->prev = 0;				\
-				hostList ? (hostList->prev = (h)):0; 	\
+#define h_InsertList_r(h) 	(h)->z.next =  hostList;			\
+				(h)->z.prev = 0;				\
+				hostList ? (hostList->z.prev = (h)):0; 	\
 				hostList = (h);                         \
 			        hostCount++;
 #define h_DeleteList_r(h)	opr_Assert(hostCount>0);                    \
 				hostCount--;                                \
-				(h)->next ? ((h)->next->prev = (h)->prev):0;\
-				(h)->prev ? ((h)->prev->next = (h)->next):0;\
-				( h == hostList )? (hostList = h->next):0;
+				(h)->z.next ? ((h)->z.next->z.prev = (h)->z.prev):0;\
+				(h)->z.prev ? ((h)->z.prev->z.next = (h)->z.next):0;\
+				( h == hostList )? (hostList = h->z.next):0;
 
 extern int DeleteAllCallBacks_r(struct host *host, int deletefe);
 extern int DeleteCallBack(struct host *host, AFSFid * fid);

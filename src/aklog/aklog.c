@@ -655,7 +655,8 @@ out:
  * 	structure which should be freed by the caller.
  * @param[out[ userPtr
  * 	A string containing the principal of the user to whom the token was
- * 	issued. This is a malloc'd block which should be freed by the caller.
+ * 	issued. This is a malloc'd block which should be freed by the caller,
+ *      if set.
  *
  * @returns
  * 	0 on success, an error value upon failure
@@ -663,7 +664,7 @@ out:
 static int
 rxkad_build_native_token(krb5_context context, krb5_creds *v5cred,
 			 struct ktc_tokenUnion **tokenPtr, char **userPtr) {
-    char username[BUFSIZ];
+    char username[BUFSIZ]="";
     struct ktc_token token;
     int status;
 #ifdef HAVE_NO_KRB5_524
@@ -688,14 +689,15 @@ rxkad_build_native_token(krb5_context context, krb5_creds *v5cred,
 				      (char *) &k4inst,
 				      (char *) &k4realm);
     if (status) {
-	afs_com_err(progname, status, "while converting principal "
-		    "to Kerberos V4 format");
-	return AKLOG_KERBEROS;
-    }
-    strcpy (username, k4name);
-    if (k4inst[0]) {
-	strcat (username, ".");
-	strcat (username, k4inst);
+	if (!noprdb)
+	    afs_com_err(progname, status,
+			"while converting principal to Kerberos V4 format");
+    } else {
+	strcpy (username, k4name);
+	if (k4inst[0]) {
+	    strcat (username, ".");
+	    strcat (username, k4inst);
+	}
     }
 #else
     len = min(get_princ_len(context, v5cred->client, 0),
@@ -731,7 +733,8 @@ rxkad_build_native_token(krb5_context context, krb5_creds *v5cred,
 	return status;
     }
 
-    *userPtr = strdup(username);
+    if (username[0] != '\0')
+	*userPtr = strdup(username);
 
     return 0;
 }
@@ -751,7 +754,8 @@ rxkad_build_native_token(krb5_context context, krb5_creds *v5cred,
  * 	structure which should be freed by the caller.
  * @param[out[ userPtr
  * 	A string containing the principal of the user to whom the token was
- * 	issued. This is a malloc'd block which should be freed by the caller.
+ * 	issued. This is a malloc'd block which should be freed by the caller,
+ *      if set.
  *
  * @returns
  * 	0 on success, an error value upon failure
@@ -838,7 +842,8 @@ rxkad_get_converted_token(krb5_context context, krb5_creds *v5cred,
  * 	be freed by the caller.
  * @parma[out] authuser
  * 	A string containing the principal of the user to whom the token was
- * 	issued. This is a malloc'd block which should be freed by the caller.
+ * 	issued. This is a malloc'd block which should be freed by the caller,
+ *      if set.
  * @param[out] foreign
  * 	Whether the user is considered as 'foreign' to the realm of the cell.
  *
@@ -871,12 +876,17 @@ rxkad_get_token(krb5_context context, struct afsconf_cell *cell, char *realm,
 
     /* We now have the username, plus the realm name, so stitch them together
      * to give us the name that the ptserver will know the user by */
-    if (realmUsed == NULL) {
+    if (realmUsed == NULL || username == NULL) {
 	*authuser = username;
 	username = NULL;
 	*foreign = 0;
     } else {
-	asprintf(authuser, "%s@%s", username, realmUsed);
+	if (asprintf(authuser, "%s@%s", username, realmUsed) < 0) {
+	    fprintf(stderr, "%s: Out of memory building PTS name\n", progname);
+	    *authuser = NULL;
+	    status = AKLOG_MISC;
+	    goto out;
+	}
 	*foreign = 1;
     }
 
@@ -998,7 +1008,10 @@ auth_to_cell(krb5_context context, const char *config,
 	noprdb = 1;
 #endif
 
-	if (noprdb) {
+	if (username == NULL) {
+	    afs_dprintf("Not resolving name to id\n");
+	}
+	else if (noprdb) {
 	    afs_dprintf("Not resolving name %s to id (-noprdb set)\n", username);
 	}
 	else {
@@ -1069,7 +1082,12 @@ auth_to_cell(krb5_context context, const char *config,
 	    }
 	}
 
-	afs_dprintf("Setting tokens. %s @ %s \n", username, cellconf.name);
+	if (username) {
+	    afs_dprintf("Setting tokens. %s @ %s\n",
+			username, cellconf.name);
+	} else {
+	    afs_dprintf("Setting tokens for cell %s\n", cellconf.name);
+	}
 
 #ifndef AFS_AIX51_ENV
 	/* on AIX 4.1.4 with AFS 3.4a+ if a write is not done before
@@ -1166,7 +1184,7 @@ next_path(char *origpath)
     static char path[MAXPATHLEN + 1];
     static char pathtocheck[MAXPATHLEN + 1];
 
-    int link = FALSE;		/* Is this a symbolic link? */
+    ssize_t link;		/* Return value from readlink */
     char linkbuf[MAXPATHLEN + 1];
     char tmpbuf[MAXPATHLEN + 1];
 
@@ -1244,7 +1262,7 @@ next_path(char *origpath)
 	else
 	    last_comp = elast_comp;
     }
-    while(link);
+    while(link > 0);
 
     return(pathtocheck);
 }
@@ -1479,20 +1497,25 @@ main(int argc, char *argv[])
 	filepath = getenv("KRB5_CONFIG");
 
 	/* only fiddle with KRB5_CONFIG if krb5-weak.conf actually exists */
-	asprintf(&newpath, "%s/krb5-weak.conf", AFSDIR_CLIENT_ETC_DIRPATH);
-	if (access(newpath, R_OK) == 0) {
+	if (asprintf(&newpath, "%s/krb5-weak.conf",
+		     AFSDIR_CLIENT_ETC_DIRPATH) < 0)
+	    newpath = NULL;
+	if (newpath != NULL && access(newpath, R_OK) == 0) {
 	    free(newpath);
 	    newpath = NULL;
-	    asprintf(&newpath, "%s:%s/krb5-weak.conf",
-	             filepath ? filepath : defaultpath,
-	             AFSDIR_CLIENT_ETC_DIRPATH);
-	    setenv("KRB5_CONFIG", newpath, 1);
+	    if (asprintf(&newpath, "%s:%s/krb5-weak.conf",
+			 filepath ? filepath : defaultpath,
+			 AFSDIR_CLIENT_ETC_DIRPATH) < 0)
+		newpath = NULL;
+	    else
+		setenv("KRB5_CONFIG", newpath, 1);
 	}
 #endif
 	krb5_init_context(&context);
 
 #if defined(KRB5_PROG_ETYPE_NOSUPP) && !(defined(HAVE_KRB5_ENCTYPE_ENABLE) || defined(HAVE_KRB5_ALLOW_WEAK_CRYPTO))
-	free(newpath);
+	if (newpath)
+	    free(newpath);
 	if (filepath)
 	    setenv("KRB5_CONFIG", filepath, 1);
 	else

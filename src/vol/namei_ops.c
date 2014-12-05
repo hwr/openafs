@@ -70,6 +70,7 @@
 
 int Testing=0;
 
+static void namei_UnlockLinkCount(FdHandle_t * fdP, Inode ino);
 
 afs_sfsize_t
 namei_iread(IHandle_t * h, afs_foff_t offset, char *buf, afs_fsize_t size)
@@ -953,20 +954,19 @@ bad:
 #else /* !AFS_NT40_ENV */
 Inode
 icreate(IHandle_t * lh, char *part, afs_uint32 p1, afs_uint32 p2, afs_uint32 p3, afs_uint32 p4,
-        FD_t *afd, Inode *ainode)
+        IHandle_t **a_ih)
 {
     namei_t name;
     int fd = INVALID_FD;
     int code = 0;
     int created_dir = 0;
     IHandle_t tmp;
+    IHandle_t *realh = NULL;
     FdHandle_t *fdP;
-    FdHandle_t tfd;
     int tag;
     int ogm_parm;
 
     memset((void *)&tmp, 0, sizeof(IHandle_t));
-    memset(&tfd, 0, sizeof(FdHandle_t));
 
     tmp.ih_dev = volutil_GetPartitionID(part);
     if (tmp.ih_dev == -1) {
@@ -1034,13 +1034,18 @@ icreate(IHandle_t * lh, char *part, afs_uint32 p1, afs_uint32 p2, afs_uint32 p3,
 	goto bad;
     }
 
+    IH_INIT(realh, tmp.ih_dev, tmp.ih_vid, tmp.ih_ino);
+    fdP = ih_attachfd(realh, fd);
+
+    /* ih_attachfd can only return NULL if we give it an invalid fd; our fd
+     * must be valid by this point. */
+    opr_Assert(fdP);
+
     if (p2 == (afs_uint32)-1 && p3 == VI_LINKTABLE) {
-	/* hack at tmp to setup for set link count call. */
-	memset((void *)&tfd, 0, sizeof(FdHandle_t));	/* minimalistic still, but a little cleaner */
-	tfd.fd_ih = &tmp;
-	tfd.fd_fd = fd;
-	code = namei_SetLinkCount(&tfd, (Inode) 0, 1, 0);
+	code = namei_SetLinkCount(fdP, (Inode) 0, 1, 0);
     }
+
+    FDH_CLOSE(fdP);
 
   bad:
     if (code || (fd == INVALID_FD)) {
@@ -1051,10 +1056,10 @@ icreate(IHandle_t * lh, char *part, afs_uint32 p1, afs_uint32 p2, afs_uint32 p3,
 		FDH_CLOSE(fdP);
 	    }
 	}
+	IH_RELEASE(realh);
     }
 
-    *afd = fd;
-    *ainode = tmp.ih_ino;
+    *a_ih = realh;
 
     return code;
 }
@@ -1063,44 +1068,32 @@ Inode
 namei_icreate(IHandle_t * lh, char *part,
               afs_uint32 p1, afs_uint32 p2, afs_uint32 p3, afs_uint32 p4)
 {
-    Inode ino = 0;
-    int fd = INVALID_FD;
+    Inode ino;
+    IHandle_t *ihP = NULL;
     int code;
 
-    code = icreate(lh, part, p1, p2, p3, p4, &fd, &ino);
-    if (fd != INVALID_FD) {
-	close(fd);
+    code = icreate(lh, part, p1, p2, p3, p4, &ihP);
+    if (code || !ihP) {
+	opr_Assert(!ihP);
+	ino = -1;
+    } else {
+	ino = ihP->ih_ino;
+	IH_RELEASE(ihP);
     }
-    return (code || (fd == INVALID_FD)) ? (Inode) - 1 : ino;
+    return ino;
 }
 
 IHandle_t *
 namei_icreate_init(IHandle_t * lh, int dev, char *part,
                    afs_uint32 p1, afs_uint32 p2, afs_uint32 p3, afs_uint32 p4)
 {
-    Inode ino = 0;
-    int fd = INVALID_FD;
     int code;
-    IHandle_t *ihP;
-    FdHandle_t *fdP;
+    IHandle_t *ihP = NULL;
 
-    code = icreate(lh, part, p1, p2, p3, p4, &fd, &ino);
-    if (fd == INVALID_FD) {
-	return NULL;
-    }
+    code = icreate(lh, part, p1, p2, p3, p4, &ihP);
     if (code) {
-	close(fd);
-	return NULL;
+	opr_Assert(!ihP);
     }
-
-    IH_INIT(ihP, dev, p1, ino);
-    fdP = ih_attachfd(ihP, fd);
-    if (!fdP) {
-	close(fd);
-    } else {
-	FDH_CLOSE(fdP);
-    }
-
     return ihP;
 }
 #endif
@@ -1162,19 +1155,33 @@ namei_dec(IHandle_t * ih, Inode ino, int p1)
 	    }
 
 	    count--;
-	    if (namei_SetLinkCount(fdP, (Inode) 0, count < 0 ? 0 : count, 1) <
-		0) {
-		FDH_REALLYCLOSE(fdP);
-		IH_RELEASE(tmp);
-		return -1;
-	    }
-
 	    if (count > 0) {
+		/* if our count is non-zero, we just set our new linkcount and
+		 * return. But if our count is 0, don't bother updating the
+		 * linktable, since we're about to delete the link table,
+		 * below. */
+		if (namei_SetLinkCount(fdP, (Inode) 0, count < 0 ? 0 : count, 1) < 0) {
+		    FDH_REALLYCLOSE(fdP);
+		    IH_RELEASE(tmp);
+		    return -1;
+		}
+
 		FDH_CLOSE(fdP);
 		IH_RELEASE(tmp);
 		return 0;
 	    }
+
+	    namei_UnlockLinkCount(fdP, (Inode) 0);
 	}
+
+	/* We should IH_REALLYCLOSE right before deleting the special file from
+	 * disk, to ensure that somebody else cannot create a special inode,
+	 * then IH_OPEN that special inode and get back a cached fd for the
+	 * file we are deleting here (instead of an fd for the file they just
+	 * created). */
+	IH_REALLYCLOSE(tmp);
+	FDH_REALLYCLOSE(fdP);
+	IH_RELEASE(tmp);
 
 	if ((code = OS_UNLINK(name.n_path)) == 0) {
 	    if (type == VI_LINKTABLE) {
@@ -1189,8 +1196,6 @@ namei_dec(IHandle_t * ih, Inode ino, int p1)
 		(void)namei_RemoveDataDirectories(&name);
 	    }
 	}
-	FDH_REALLYCLOSE(fdP);
-	IH_RELEASE(tmp);
     } else {
 	/* Get a file descriptor handle for this Inode */
 	fdP = IH_OPEN(ih);
@@ -1598,12 +1603,6 @@ namei_GetLinkCount(FdHandle_t * h, Inode ino, int lockit, int fixup, int nowrite
     return -1;
 }
 
-int
-namei_SetNonZLC(FdHandle_t * h, Inode ino)
-{
-    return namei_GetLinkCount(h, ino, 0, 1, 0);
-}
-
 /* Return a free column index for this vnode. */
 static int
 GetFreeTag(IHandle_t * ih, int vno)
@@ -1714,6 +1713,17 @@ namei_SetLinkCount(FdHandle_t * fdP, Inode ino, int count, int locked)
 
     /* disallowed above 7, so... */
     return (int)nBytes;
+}
+
+static void
+namei_UnlockLinkCount(FdHandle_t * fdP, Inode ino)
+{
+    afs_foff_t offset;
+    int index;
+
+    namei_GetLCOffsetAndIndexFromIno(ino, &offset, &index);
+
+    FDH_UNLOCKFILE(fdP, offset);
 }
 
 

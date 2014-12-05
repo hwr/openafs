@@ -171,11 +171,12 @@ ParmHelpString(struct cmd_parmdesc *aparm)
     if (aparm->type == CMD_FLAG) {
 	return strdup("");
     } else {
-	asprintf(&str, " %s<%s>%s%s",
-	         aparm->type == CMD_SINGLE_OR_FLAG?"[":"",
-		 aparm->help?aparm->help:"arg",
-		 aparm->type == CMD_LIST?"+":"",
-		 aparm->type == CMD_SINGLE_OR_FLAG?"]":"");
+	if (asprintf(&str, " %s<%s>%s%s",
+		     aparm->type == CMD_SINGLE_OR_FLAG?"[":"",
+		     aparm->help?aparm->help:"arg",
+		     aparm->type == CMD_LIST?"+":"",
+		     aparm->type == CMD_SINGLE_OR_FLAG?"]":"") < 0)
+	    return "<< OUT OF MEMORY >>";
 	return str;
     }
 }
@@ -201,17 +202,13 @@ PrintSyntax(struct cmd_syndesc *as)
 
     /* now print usage, from syntax table */
     if (noOpcodes)
-	asprintf(&str, "Usage: %s", as->a0name);
+	len = printf("Usage: %s", as->a0name);
     else {
 	if (!strcmp(as->name, initcmd_opcode))
-	    asprintf(&str, "Usage: %s[%s]", NName(as->a0name, " "), as->name);
+	    len = printf("Usage: %s[%s]", NName(as->a0name, " "), as->name);
 	else
-	    asprintf(&str, "Usage: %s%s", NName(as->a0name, " "), as->name);
+	    len = printf("Usage: %s%s", NName(as->a0name, " "), as->name);
     }
-
-    len = strlen(str);
-    printf("%s", str);
-    free(str);
 
     for (i = 0; i < CMD_MAXPARMS; i++) {
 	tp = &as->parms[i];
@@ -433,10 +430,24 @@ SortSyntax(struct cmd_syndesc *as)
     return 0;
 }
 
+/*!
+ * Create a command syntax.
+ *
+ * \note Use cmd_AddParm() or cmd_AddParmAtOffset() to set the
+ *       parameters for the new command.
+ *
+ * \param[in] aname  name used to invoke the command
+ * \param[in] aproc  procedure to be called when command is invoked
+ * \param[in] arock  opaque data pointer to be passed to aproc
+ * \param[in] aflags command option flags (CMD_HIDDEN)
+ * \param[in] ahelp  help string to display for this command
+ *
+ * \return a pointer to the cmd_syndesc or NULL if error.
+ */
 struct cmd_syndesc *
 cmd_CreateSyntax(char *aname,
 		 int (*aproc) (struct cmd_syndesc * ts, void *arock),
-		 void *arock, char *ahelp)
+		 void *arock, afs_uint32 aflags, char *ahelp)
 {
     struct cmd_syndesc *td;
 
@@ -444,9 +455,15 @@ cmd_CreateSyntax(char *aname,
     if (noOpcodes)
 	return NULL;
 
+    /* Allow only valid cmd flags. */
+    if (aflags & ~CMD_HIDDEN) {
+	return NULL;
+    }
+
     td = calloc(1, sizeof(struct cmd_syndesc));
     assert(td);
     td->aliasOf = td;		/* treat aliasOf as pointer to real command, no matter what */
+    td->flags = aflags;
 
     /* copy in name, etc */
     if (aname) {
@@ -457,13 +474,8 @@ cmd_CreateSyntax(char *aname,
 	noOpcodes = 1;
     }
     if (ahelp) {
-	/* Piggy-back the hidden option onto the help string */
-	if (ahelp == (char *)CMD_HIDDEN) {
-	    td->flags |= CMD_HIDDEN;
-	} else {
-	    td->help = strdup(ahelp);
-	    assert(td->help);
-	}
+	td->help = strdup(ahelp);
+	assert(td->help);
     } else
 	td->help = NULL;
     td->proc = aproc;
@@ -512,13 +524,6 @@ void
 cmd_DisableAbbreviations(void)
 {
     enableAbbreviation = 0;
-}
-
-int
-cmd_IsAdministratorCommand(struct cmd_syndesc *as)
-{
-    as->flags |= CMD_ADMIN;
-    return 0;
 }
 
 int
@@ -758,25 +763,20 @@ initSyntax(void)
     struct cmd_syndesc *ts;
 
     if (!noOpcodes) {
-	ts = cmd_CreateSyntax("help", HelpProc, NULL,
+	ts = cmd_CreateSyntax("help", HelpProc, NULL, 0,
 			      "get help on commands");
 	cmd_AddParm(ts, "-topic", CMD_LIST, CMD_OPTIONAL, "help string");
-	cmd_AddParm(ts, "-admin", CMD_FLAG, CMD_OPTIONAL, NULL);
 
-	ts = cmd_CreateSyntax("apropos", AproposProc, NULL,
+	ts = cmd_CreateSyntax("apropos", AproposProc, NULL, 0,
 			      "search by help text");
 	cmd_AddParm(ts, "-topic", CMD_SINGLE, CMD_REQUIRED, "help string");
 
-	cmd_CreateSyntax("version", VersionProc, NULL,
+	cmd_CreateSyntax("version", VersionProc, NULL, 0,
 			 "show version");
-	cmd_CreateSyntax("-version", VersionProc, NULL,
-			 (char *)CMD_HIDDEN);
-	cmd_CreateSyntax("-help", HelpProc, NULL,
-			 (char *)CMD_HIDDEN);
-	cmd_CreateSyntax("--version", VersionProc, NULL,
-		         (char *)CMD_HIDDEN);
-	cmd_CreateSyntax("--help", HelpProc, NULL,
-			 (char *)CMD_HIDDEN);
+	cmd_CreateSyntax("-version", VersionProc, NULL, CMD_HIDDEN, NULL);
+	cmd_CreateSyntax("-help", HelpProc, NULL, CMD_HIDDEN, NULL);
+	cmd_CreateSyntax("--version", VersionProc, NULL, CMD_HIDDEN, NULL);
+	cmd_CreateSyntax("--help", HelpProc, NULL, CMD_HIDDEN, NULL);
     }
 }
 
@@ -1269,7 +1269,8 @@ _get_file_string(struct cmd_syndesc *syn, int pos, const char **str)
 
     /* First, try the command_subcommand form */
     if (syn->name != NULL && commandName != NULL) {
-	asprintf(&section, "%s_%s", commandName, syn->name);
+	if (asprintf(&section, "%s_%s", commandName, syn->name) < 0)
+	    return ENOMEM;
 	*str = cmd_RawConfigGetString(globalConfig, NULL, section,
 				      optionName, NULL);
 	free(section);

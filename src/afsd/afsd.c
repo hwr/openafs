@@ -79,6 +79,7 @@
 
 #include <sys/file.h>
 #include <sys/wait.h>
+#include <hcrypto/rand.h>
 
 /* darwin dirent.h doesn't give us the prototypes we want if KERNEL is
  * defined */
@@ -2087,7 +2088,8 @@ afsd_run(void)
     }
     if (afsd_debug)
 	printf("%s: %d inode_for_V entries at %p, %lu bytes\n", rn,
-	       cacheFiles, inode_for_V, (cacheFiles * sizeof(AFSD_INO_T)));
+	       cacheFiles, inode_for_V,
+	       (unsigned long)cacheFiles * sizeof(AFSD_INO_T));
 #endif
 
     if (!(cacheFlags & AFSCALL_INIT_MEMCACHE)) {
@@ -2127,6 +2129,13 @@ afsd_run(void)
 
     /* initialize the rx random number generator from user space */
     {
+	/* rand-fortuna wants at least 128 bytes of seed; be generous. */
+	unsigned char seedbuf[256];
+	if (RAND_bytes(seedbuf, sizeof(seedbuf)) != 1) {
+	    printf("SEED_ENTROPY: Error retrieving seed entropy\n");
+	}
+	afsd_syscall(AFSOP_SEED_ENTROPY, seedbuf, sizeof(seedbuf));
+	memset(seedbuf, 0, sizeof(seedbuf));
 	/* parse multihomed address files */
 	afs_uint32 addrbuf[MAXIPADDRS], maskbuf[MAXIPADDRS],
 	    mtubuf[MAXIPADDRS];
@@ -2454,14 +2463,16 @@ afsd_run(void)
     return 0;
 }
 
+#ifndef UKERNEL
 #include "AFS_component_version_number.c"
+#endif
 
 void
 afsd_init(void)
 {
     struct cmd_syndesc *ts;
 
-    ts = cmd_CreateSyntax(NULL, mainproc, NULL, "start AFS");
+    ts = cmd_CreateSyntax(NULL, mainproc, NULL, 0, "start AFS");
 
     /* 0 - 10 */
     cmd_AddParmAtOffset(ts, OPT_blocks, "-blocks", CMD_SINGLE,
@@ -2673,6 +2684,10 @@ afsd_syscall_populate(struct afsd_syscall_args *args, int syscall, va_list ap)
 #else
 	params[0] = CAST_SYSCALL_PARAM((va_arg(ap, afs_uint32)));
 #endif
+	break;
+    case AFSOP_SEED_ENTROPY:
+	params[0] = CAST_SYSCALL_PARAM((va_arg(ap, void *)));
+	params[1] = CAST_SYSCALL_PARAM((va_arg(ap, afs_uint32)));
 	break;
     default:
 	printf("Unknown syscall enountered: %d\n", syscall);
