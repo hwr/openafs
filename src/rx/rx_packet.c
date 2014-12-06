@@ -1117,32 +1117,6 @@ rxi_AllocPacketNoLock(int class)
 
     RX_TS_INFO_GET(rx_ts_info);
 
-#ifdef KERNEL
-    if (rxi_OverQuota(class)) {
-	rxi_NeedMorePackets = TRUE;
-        if (rx_stats_active) {
-            switch (class) {
-            case RX_PACKET_CLASS_RECEIVE:
-                rx_atomic_inc(rx_stats.receivePktAllocFailures);
-                break;
-            case RX_PACKET_CLASS_SEND:
-                rx_atomic_inc(&rx_stats.sendPktAllocFailures);
-                break;
-            case RX_PACKET_CLASS_SPECIAL:
-                rx_atomic_inc(&rx_stats.specialPktAllocFailures);
-                break;
-            case RX_PACKET_CLASS_RECV_CBUF:
-                rx_atomic_inc(&rx_stats.receiveCbufPktAllocFailures);
-                break;
-            case RX_PACKET_CLASS_SEND_CBUF:
-                rx_atomic_inc(&rx_stats.sendCbufPktAllocFailures);
-                break;
-            }
-	}
-        return (struct rx_packet *)0;
-    }
-#endif /* KERNEL */
-
     if (rx_stats_active)
         rx_atomic_inc(&rx_stats.packetRequests);
     if (opr_queue_IsEmpty(&rx_ts_info->_FPQ.queue)) {
@@ -2104,6 +2078,7 @@ rxi_SendDebugPacket(struct rx_packet *apacket, osi_socket asocket,
     taddr.sin_family = AF_INET;
     taddr.sin_port = aport;
     taddr.sin_addr.s_addr = ahost;
+    memset(&taddr.sin_zero, 0, sizeof(taddr.sin_zero));
 #ifdef STRUCT_SOCKADDR_HAS_SA_LEN
     taddr.sin_len = sizeof(struct sockaddr_in);
 #endif
@@ -2204,6 +2179,7 @@ rxi_SendPacket(struct rx_call *call, struct rx_connection *conn,
     addr.sin_family = AF_INET;
     addr.sin_port = peer->port;
     addr.sin_addr.s_addr = peer->host;
+    memset(&addr.sin_zero, 0, sizeof(addr.sin_zero));
 
     /* This stuff should be revamped, I think, so that most, if not
      * all, of the header stuff is always added here.  We could
@@ -2357,6 +2333,7 @@ rxi_SendPacketList(struct rx_call *call, struct rx_connection *conn,
     addr.sin_family = AF_INET;
     addr.sin_port = peer->port;
     addr.sin_addr.s_addr = peer->host;
+    memset(&addr.sin_zero, 0, sizeof(addr.sin_zero));
 
     if (len + 1 > RX_MAXIOVECS) {
 	osi_Panic("rxi_SendPacketList, len > RX_MAXIOVECS\n");
@@ -2562,6 +2539,7 @@ rxi_SendRawAbort(osi_socket socket, afs_uint32 host, u_short port,
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = host;
     addr.sin_port = port;
+    memset(&addr.sin_zero, 0, sizeof(addr.sin_zero));
 #ifdef STRUCT_SOCKADDR_HAS_SA_LEN
     addr.sin_len = sizeof(struct sockaddr_in);
 #endif

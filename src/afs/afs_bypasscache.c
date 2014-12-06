@@ -127,7 +127,6 @@ afs_TransitionToBypass(struct vcache *avc,
 		       afs_ucred_t *acred, int aflags)
 {
 
-    afs_int32 code;
     int setDesire = 0;
     int setManual = 0;
     int bypasscache = 0;
@@ -168,13 +167,11 @@ afs_TransitionToBypass(struct vcache *avc,
 #if 0
     /* cg2v, try to store any chunks not written 20071204 */
     if (avc->execsOrWriters > 0) {
-	struct vrequest *treq = NULL;
-
-	code = afs_CreateReq(&treq, acred);
-	if (!code) {
-	    code = afs_StoreAllSegments(avc, treq, AFS_SYNC | AFS_LASTSTORE);
-	    afs_DestroyReq(treq);
-	}
+        afs_int32 code;
+        struct vrequest treq;
+	code = afs_InitReq(&treq, acred);
+	if (!code)
+	    code = afs_StoreAllSegments(avc, &treq, AFS_SYNC | AFS_LASTSTORE);
     }
 
     /* also cg2v, don't dequeue the callback */

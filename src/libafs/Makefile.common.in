@@ -71,6 +71,9 @@ single_destdir_libafs: dest_libafs
 depsrcs: 
 
 AFSAOBJS = \
+	sha256-kernel.o \
+	rand-fortuna-kernel.o \
+	rand-timer-kernel.o \
 	afs_atomlist.o \
 	afs_lhash.o \
 	afs_analyze.o \
@@ -129,6 +132,8 @@ AFSAOBJS = \
 	afs_volume.o \
 	afs_warn.o \
 	afsaux.o		\
+	xdr_update.o	\
+	xdr_refernce.o	\
 	Kvice.xdr.o	\
 	xdr_arrayn.o	\
 	xdr_array.o	\
@@ -219,6 +224,17 @@ AFSNONFSOBJS = \
 
 # init daemons call pioctl
 AFSPAGOBJS = \
+	sha256-kernel.o \
+	rand-fortuna-kernel.o \
+	rand-timer-kernel.o \
+	md5.o		\
+	evp.o		\
+	evp-algs.o    	\
+	rand-kernel.o   \
+	alloc-kernel.o	\
+	aes.o		\
+	rijndael-alg-fst.o \
+	sha.o		\
 	afs_atomlist.o \
 	afs_error.o \
 	afs_icl.o \
@@ -235,6 +251,8 @@ AFSPAGOBJS = \
 	afs_tokens.o \
 	afs_warn.o \
 	afsaux.o		\
+	xdr_update.o	\
+	xdr_refernce.o	\
 	xdr_arrayn.o	\
 	xdr_array.o	\
 	xdr_int32.o	\
@@ -258,6 +276,7 @@ AFSPAGOBJS = \
 	rx_pag_packet.o	\
 	rx_multi.o	\
 	rx_stats.o	\
+	strcasecmp_pag.o	\
 	opr_rbtree.o	\
 	xdr_rx.o	\
 	xdr_mem.o	\
@@ -493,6 +512,10 @@ Krmtsys.cs.o: $(TOP_OBJ_SYS)/Krmtsys.cs.c
 	$(CRULE_NOOPT) $(TOP_OBJ_SYS)/Krmtsys.cs.c
 afsaux.o: $(TOP_SRC_FSINT)/afsaux.c
 	$(CRULE_NOOPT) $(TOP_SRC_FSINT)/afsaux.c
+xdr_update.o: $(TOP_SRC_RX)/xdr_update.c
+	$(CRULE_NOOPT) $(TOP_SRC_RX)/xdr_update.c
+xdr_refernce.o: $(TOP_SRC_RX)/xdr_refernce.c
+	$(CRULE_NOOPT) $(TOP_SRC_RX)/xdr_refernce.c
 xdr_arrayn.o: $(TOP_SRC_RX)/xdr_arrayn.c
 	$(CRULE_NOOPT) $(TOP_SRC_RX)/xdr_arrayn.c
 xdr_array.o: $(TOP_SRC_RX)/xdr_array.c
@@ -559,6 +582,8 @@ rx_pag_packet.o: $(TOP_SRC_RX)/rx_packet.c
 	$(CRULE_NOOPT) $(TOP_SRC_RX)/rx_packet.c
 rx_pag_knet.o: $(TOP_SRC_RX)/${MKAFS_OSTYPE}/rx_knet.c
 	$(CRULE_NOOPT) $(TOP_SRC_RX)/${MKAFS_OSTYPE}/rx_knet.c
+strcasecmp_pag.o: $(TOP_SRCDIR)/crypto/hcrypto/kernel/strcasecmp.c
+	$(CRULE_NOOPT) $(TOP_SRCDIR)/crypto/hcrypto/kernel/strcasecmp.c
 
 # Crypto
 md5.o: $(TOP_SRCDIR)/external/heimdal/hcrypto/md5.c
@@ -576,6 +601,18 @@ CFLAGS-evp-algs.o = -I$(TOP_INCDIR)/hcrypto
 rand-kernel.o: $(TOP_SRCDIR)/crypto/hcrypto/kernel/rand.c
 	$(CRULE_OPT) $(TOP_SRCDIR)/crypto/hcrypto/kernel/rand.c
 CFLAGS-rand-kernel.o = -I$(TOP_INCDIR)/hcrypto
+
+rand-fortuna-kernel.o: $(TOP_SRCDIR)/external/heimdal/hcrypto/rand-fortuna.c
+	$(CRULE_OPT) $(TOP_SRCDIR)/external/heimdal/hcrypto/rand-fortuna.c
+CFLAGS-rand-fortuna-kernel.o = -I$(TOP_INCDIR)/hcrypto
+
+rand-timer-kernel.o: $(TOP_SRCDIR)/crypto/hcrypto/kernel/rand-timer.c
+	$(CRULE_OPT) $(TOP_SRCDIR)/crypto/hcrypto/kernel/rand-timer.c
+CFLAGS-rand-timer-kernel.o = -I$(TOP_SRCDIR)/external/heimdal/hcrypto
+
+sha256-kernel.o: $(TOP_SRCDIR)/external/heimdal/hcrypto/sha256.c
+	$(CRULE_OPT) $(TOP_SRCDIR)/external/heimdal/hcrypto/sha256.c
+CFLAGS-sha256-kernel.o = -I$(TOP_INCDIR)/hcrypto
 
 alloc-kernel.o: $(TOP_SRCDIR)/crypto/hcrypto/kernel/alloc.c
 	$(CRULE_OPT) $(TOP_SRCDIR)/crypto/hcrypto/kernel/alloc.c

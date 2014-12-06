@@ -191,7 +191,6 @@ AC_OUTPUT([
     src/config/Makefile.lwp
     src/config/Makefile.lwptool
     src/config/Makefile.pthread
-    src/config/Makefile.shared
     src/config/Makefile.version-CML
     src/config/Makefile.version-NOCML
     src/config/shlib-build
@@ -236,7 +235,6 @@ AC_OUTPUT([
     src/lwp/Makefile
     src/lwp/test/Makefile
     src/opr/Makefile
-    src/packaging/Debian/changelog
     src/packaging/MacOS/OpenAFS-debug.Description.plist
     src/packaging/MacOS/OpenAFS-debug.Info.plist
     src/packaging/MacOS/OpenAFS.Description.plist

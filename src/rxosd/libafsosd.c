@@ -127,8 +127,7 @@ struct cmd_ops_v0 {
 			afs_int32 aflags, char *ahelp);
     struct cmd_syndesc *(*cmd_CreateSyntax) (char *namep,
 			   int (*aprocp) (struct cmd_syndesc *ts, void *arock),
-			   void *rockp, char *helpp);
-    int (*cmd_IsAdministratorCommand) (struct cmd_syndesc *as);
+			   void *rockp, afs_uint32 aflags, char *helpp);
     int (*cmd_Seek) (struct cmd_syndesc *as, int apos);
     afs_uint32 (*GetServer) (char *aname);
     int (*pioctl) (char *path, afs_int32 cmd, struct ViceIoctl *data,
@@ -513,7 +512,6 @@ fill_ops(struct ops_ptr *opsptr)
     cmd->afs_error_message = afs_error_message;
     cmd->cmd_AddParm = cmd_AddParm;
     cmd->cmd_CreateSyntax = cmd_CreateSyntax;
-    cmd->cmd_IsAdministratorCommand = cmd_IsAdministratorCommand;
     cmd->cmd_Seek = cmd_Seek;
     cmd->pioctl = pioctl;
     cmd->rxkad_NewClientSecurityObject = rxkad_NewClientSecurityObject;
@@ -977,14 +975,9 @@ cmd_AddParm(struct cmd_syndesc *as, char *aname, int atype, afs_int32 aflags,
 
 struct cmd_syndesc *
 cmd_CreateSyntax(char *namep, int (*aprocp) (struct cmd_syndesc * ts, void *arock),
-		 void *rockp, char *helpp)
+		 void *rockp, afs_uint32 aflags, char *helpp)
 {
-    return (cmd->cmd_CreateSyntax)(namep, aprocp, rockp, helpp);
-}
-
-int cmd_IsAdministratorCommand(struct cmd_syndesc *as)
-{
-    return (cmd->cmd_IsAdministratorCommand)(as);
+    return (cmd->cmd_CreateSyntax)(namep, aprocp, rockp, aflags, helpp);
 }
 
 int

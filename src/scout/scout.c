@@ -397,7 +397,7 @@ scout_initDiskLightObjects(struct mini_line *a_line, struct gwin *a_win)
 	curr_disk->prev = i - 1;
 	curr_disk->next = i + 1;
 	curr_disk->active = 0;
-	curr_disk->name = '\0';
+	curr_disk->name = "";
 
 	/*
 	 * Bump up to the next disk structure.
@@ -2356,7 +2356,7 @@ main(int argc, char **argv)
     /*
      * Set up the commands we understand.
      */
-    ts = cmd_CreateSyntax("initcmd", scoutInit, NULL, "initialize the program");
+    ts = cmd_CreateSyntax("initcmd", scoutInit, NULL, 0, "initialize the program");
     cmd_AddParm(ts, "-server", CMD_LIST, CMD_REQUIRED,
 		"FileServer name(s) to monitor");
     cmd_AddParm(ts, "-basename", CMD_SINGLE, CMD_OPTIONAL,

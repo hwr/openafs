@@ -49,8 +49,7 @@ LIBS= \
      $(top_builddir)/src/fsint/liboafs_fsint.la \
      $(top_builddir)/src/cmd/liboafs_cmd.la \
      $(top_builddir)/src/opr/liboafs_opr.la \
-     $(top_builddir)/src/util/liboafs_util.la \
-     $(top_builddir)/src/roken/liboafs_roken.la
+     $(top_builddir)/src/util/liboafs_util.la
 
 all: dafileserver state_analyzer
 

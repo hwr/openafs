@@ -1814,10 +1814,11 @@ GetVolumeSummary(struct SalvInfo *salvinfo, VolumeId singleVolumeNumber)
     return 0;
 }
 
+#ifdef AFS_NAMEI_ENV
 /* Find the link table. This should be associated with the RW volume, even
  * if there is only an RO volume at this site.
  */
-Inode
+static Inode
 FindLinkHandle(struct InodeSummary *isp, int nVols,
 	       struct ViceInodeInfo *allInodes)
 {
@@ -1837,7 +1838,6 @@ FindLinkHandle(struct InodeSummary *isp, int nVols,
     return (Inode) - 1;
 }
 
-#ifdef AFS_NAMEI_ENV
 static int
 CheckDupLinktable(struct SalvInfo *salvinfo, struct InodeSummary *isp, struct ViceInodeInfo *ip)
 {

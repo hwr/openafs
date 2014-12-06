@@ -353,9 +353,16 @@ readMH(afs_uint32 addr, int block, struct extentaddr *mhblockP)
 
     vldbread(addr, (char *)mhblockP, VL_ADDREXTBLK_SIZE);
 
+    /* Every mh block has the VLCONTBLOCK flag set in the header to
+     * indicate the entry is an 8192 byte extended block. The
+     * VLCONTBLOCK flag is always clear in regular vl entries. The
+     * vlserver depends on the VLCONTBLOCK flag to correctly traverse
+     * the vldb. The flags field is in network byte order. */
+    mhblockP->ex_hdrflags = ntohl(mhblockP->ex_hdrflags);
+
     if (block == 0) {
+        /* These header fields are only used in the first mh block. */
         mhblockP->ex_count = ntohl(mhblockP->ex_count);
-        mhblockP->ex_hdrflags = ntohl(mhblockP->ex_hdrflags);
         for (i = 0; i < VL_MAX_ADDREXTBLKS; i++) {
 	    mhblockP->ex_contaddrs[i] = ntohl(mhblockP->ex_contaddrs[i]);
         }
@@ -894,8 +901,8 @@ CheckIpAddrs(struct vlheader *header)
 	    readMH(mhinfo[i].addr, i, MHblock);
 	    if (MHblock->ex_hdrflags != VLCONTBLOCK) {
 	        log_error
-		    (VLDB_CHECK_ERROR,"address %u (offset 0x%0x): Multihomed Block 0: Not a multihomed block\n",
-		     header->SIT, OFFSET(header->SIT));
+		    (VLDB_CHECK_ERROR,"address %u (offset 0x%0x): Multihomed Block %d: Not a multihomed block\n",
+		     mhinfo[i].addr, OFFSET(mhinfo[i].addr), i);
 	    }
 
 	    rindex = mhinfo[i].addr / sizeof(vlentry);
@@ -1598,7 +1605,7 @@ main(int argc, char **argv)
 
     setlinebuf(stdout);
 
-    ts = cmd_CreateSyntax(NULL, WorkerBee, NULL, "vldb check");
+    ts = cmd_CreateSyntax(NULL, WorkerBee, NULL, 0, "vldb check");
     cmd_AddParm(ts, "-database", CMD_SINGLE, CMD_REQUIRED, "vldb_file");
     cmd_AddParm(ts, "-uheader", CMD_FLAG, CMD_OPTIONAL,
 		"Display UBIK header");

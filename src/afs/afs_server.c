@@ -751,13 +751,6 @@ afs_LoopServers(int adown, struct cell *acellp, int vlalso, int rxosdalso,
 	    continue;
 	}
 
-	/* check rxosd with special code */
-	if (sa->sa_portal != AFS_VLPORT && sa->sa_portal != AFS_FSPORT) {
-	    if (rxosdalso)
-		CheckRxosdServer(sa, &treq);
-	    continue;
-	}
-
 	if (!ts->cell)		/* not really an active server, anyway, it must */
 	    continue;		/* have just been added by setsprefs */
 

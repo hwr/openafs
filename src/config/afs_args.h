@@ -51,8 +51,8 @@
 #define AFSOP_SET_RXMAXMTU       40     /* set rx_MyMaxSendSize,rx_maxReceiveSizeUser,rx_maxReceiveSize */
 #define AFSOP_BKG_HANDLER        41     /* userspace-capable Bkg daemon */
 #define AFSOP_SET_RXMAXFRAGS     43     /* set rxi_nSendFrags, rxi_nRecvFrags */
-#define AFSOP_SET_RMTSYS_FLAG	 44	/* set flag if rmtsys is enabled */
-#define AFSOP_SERVERUUID         45     /* add server uuid for a visible partition */
+#define AFSOP_SET_RMTSYS_FLAG    44     /* set flag if rmtsys is enabled */
+#define AFSOP_SEED_ENTROPY       45     /* Give the kernel hcrypto entropy */
 #define AFSOP_OSDID              46     /* add visible osd  */
 #define AFSOP_LIBAFSOSD          47     /* initialize LIBAFSOSD support */
 

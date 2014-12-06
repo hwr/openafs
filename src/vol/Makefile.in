@@ -18,6 +18,7 @@ RXOSD=${srcdir}/../rxosd
 LIBS=${TOP_LIBDIR}/libcmd.a vlib.a ${TOP_LIBDIR}/util.a \
 	${TOP_LIBDIR}/libauth.a \
 	${TOP_LIBDIR}/libdir.a ${TOP_LIBDIR}/librx.a \
+	${TOP_LIBDIR}/libafshcrypto_lwp.a \
 	${TOP_LIBDIR}/liblwp.a ${TOP_LIBDIR}/libsys.a \
 	${TOP_LIBDIR}/libacl.a ${TOP_LIBDIR}/libopr.a
 
@@ -213,7 +214,7 @@ listinodes.o: listinodes.c AFS_component_version_number.c
 				;;			\
 	esac
 
-gi: ${TOP_LIBDIR}/libsys.a 
+gi: ${TOP_LIBDIR}/libsys.a
 	$(Q)case ${SYS_NAME} in \
 	        *linux* | sgi_* | *fbsd* ) \
 			echo "Don't build gi on ${SYS_NAME}";; \

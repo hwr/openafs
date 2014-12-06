@@ -37,10 +37,9 @@ LIBS=	$(top_builddir)/src/cmd/liboafs_cmd.la		\
         $(top_builddir)/src/lwp/liboafs_lwpcompat.la \
 	$(top_builddir)/src/util/liboafs_util.la	\
 	$(top_builddir)/src/opr/liboafs_opr.la		\
-	$(top_builddir)/src/usd/liboafs_usd.la	\
-	$(top_builddir)/src/roken/liboafs_roken.la
+	$(top_builddir)/src/usd/liboafs_usd.la
 
-all: davolserver 
+all: davolserver
 
 volmain.o: ${VOLSER}/volmain.c
 	$(AFS_CCRULE) -I../volser $(VOLSER)/volmain.c

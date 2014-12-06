@@ -409,7 +409,8 @@ CreateEntry(struct ubik_trans *at, char aname[PR_MAXNAMELEN], afs_int32 *aid, af
 	/* To create the user <name>@<cell> the group AUTHUSER_GROUP@<cell>
 	 * must exist.
 	 */
-	asprintf(&cellGroup, "%s%s", AUTHUSER_GROUP, atsign);
+	if (asprintf(&cellGroup, "%s%s", AUTHUSER_GROUP, atsign) < 0)
+	    return PRNOMEM;
 	pos = FindByName(at, cellGroup, &centry);
 	free(cellGroup);
 	if (!pos)
@@ -828,7 +829,7 @@ RemoveFromSGEntry(struct ubik_trans *at, afs_int32 aid, afs_int32 bid)
 	}			/* for all coentry slots */
 	hloc = nptr;
 	nptr = centry.next;
-	memcpy((char *)&centry, (char *)&hentry, sizeof(centry));
+	memcpy(&hentry, &centry, sizeof(centry));
     }				/* while there are coentries */
     return PRNOENT;
 }

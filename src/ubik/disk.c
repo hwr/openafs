@@ -900,8 +900,11 @@ udisk_commit(struct ubik_trans *atrans)
 	    newversion.counter = 1;
 
 	    code = (*dbase->setlabel) (dbase, 0, &newversion);
-	    if (code)
-		return (code);
+	    if (code) {
+		UBIK_VERSION_UNLOCK;
+		return code;
+	    }
+
 	    version_globals.ubik_epochTime[dbase->dbase_number] = newversion.epoch;
 	    dbase->version = newversion;
 	    UBIK_VERSION_UNLOCK;
@@ -926,7 +929,8 @@ udisk_commit(struct ubik_trans *atrans)
 	code = udisk_LogEnd(dbase, &dbase->version);
 	if (code) {
 	    dbase->version.counter--;
-	    return (code);
+	    UBIK_VERSION_UNLOCK;
+	    return code;
 	}
 	UBIK_VERSION_UNLOCK;
 

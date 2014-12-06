@@ -17,7 +17,7 @@ WITH_OBJECT_STORAGE=@WITH_OBJECT_STORAGE@
 # To compile AFS from scratch in the src tree run "make".
 #   This recursively calls "make install ..." and does not depend on the
 #   existence of any non-standard programs.
-# To compile for the kernel type "make blibafs".  This assumes install, 
+# To compile for the kernel type "make blibafs".  This assumes install,
 #   rxgen, compile_et and others already exist and runs it with
 #   "-argument kinstall".
 
@@ -138,11 +138,12 @@ dest_dirs: force
 	mkdir -p ${DEST}/root.server/etc
 	mkdir -p ${DEST}/root.server/usr/afs/bin
 
-prelude: ${TOP_INCDIR}/afs ${TOP_INCDIR}/rx ${TOP_INCDIR}/hcrypto ${TOP_INCDIR}/opr ${TOP_LIBDIR}
+prelude: ${TOP_INCDIR}/afs ${TOP_INCDIR}/rx ${TOP_INCDIR}/hcrypto \
+	${TOP_INCDIR}/opr ${TOP_LIBDIR}
 
-project: cmd comerr 
+project: cmd comerr
 
-tests: all 
+tests: all
 	+${COMPILE_PART1} tests ${COMPILE_PART2}
 
 config: prelude
@@ -202,9 +203,9 @@ rxdebug: rx sys
 fsint: cmd comerr rxgen rx lwp fsint_depinstall
 	+${COMPILE_PART1} fsint ${COMPILE_PART2}
 
-export2: project 
+export2: project
 
-export: 
+export:
 	@case ${SYS_NAME} in \
 	rs_aix*) \
 		${MAKE} export_build ; \
@@ -252,7 +253,8 @@ tptserver: cmd comerr ptserver tubik libafsrpc libafsauthent
 		echo Not building MT ptserver for ${SYS_NAME} ;; \
 	esac
 
-kauth: cmd comerr ubik cmd auth comerr ptserver audit libacl kauth_depinstall sys_depinstall
+kauth: cmd comerr ubik cmd auth comerr ptserver audit libacl kauth_depinstall \
+	sys_depinstall
 	+${COMPILE_PART1} kauth ${COMPILE_PART2}
 
 libacl: cmd comerr ptserver libacl_depinstall
@@ -288,7 +290,8 @@ tsalvaged: vol libafsrpc libafsauthent cmd util
 vlserver: cmd comerr vol audit vlserver_depinstall
 	+${COMPILE_PART1} vlserver ${COMPILE_PART2}
 
-tvlserver: cmd comerr vol audit tubik libafsrpc libafsauthent tvlserver_depinstall
+tvlserver: cmd comerr vol audit tubik libafsrpc libafsauthent \
+	tvlserver_depinstall
 	+case ${SYS_NAME} in \
 	alpha_dux*|sgi_*|sun*_5*|rs_aix*|*linux*|hp_ux11*|ia64_hpux*|*[nof]bsd*|*_darwin_*) \
 		${COMPILE_PART1} tvlserver ${COMPILE_PART2} ;; \
@@ -332,7 +335,7 @@ venus: cmd comerr volser ptserver libafscp libafsauthent
 venustests: venus
 	+${COMPILE_PART1} venus/test ${COMPILE_PART2}
 
-afsd: cmd comerr sys kauth vol libafsauthent @CLIENT_UAFS_DEP@
+afsd: cmd comerr sys kauth libafsauthent @CLIENT_UAFS_DEP@
 	+${COMPILE_PART1} afsd ${COMPILE_PART2}
 
 gtx: cmd comerr auth kauth
@@ -420,7 +423,8 @@ man-pages: config
 	fi
 
 #
-# _depinstall targets - only build and install headers/sources that are needed by libafs/libuafs
+# _depinstall targets - only build and install headers/sources that are
+#			needed by libafs/libuafs
 #
 # encode dependencies within the _depinstall targets as required
 #
@@ -488,8 +492,10 @@ libafs: config export rfc3961 hcrypto lwp_depinstall \
 	${CONFIGTOOL} src/libafs/MakefileProto.${MKAFS_OSTYPE} src/libafs/Makefile ${SYS_NAME}
 	+${COMPILE_PART1} libafs ${COMPILE_PART2}
 
-libafs_tree: export lwp_depinstall rx_depinstall vlserver_depinstall tvlserver_depinstall rxkad_depinstall fsint_depinstall \
-		libacl_depinstall afs_depinstall dir_depinstall rxstat_depinstall sys_depinstall auth_depinstall
+libafs_tree: export lwp_depinstall rx_depinstall vlserver_depinstall \
+		tvlserver_depinstall rxkad_depinstall fsint_depinstall \
+		libacl_depinstall afs_depinstall dir_depinstall \
+		rxstat_depinstall sys_depinstall auth_depinstall
 	${TOP_SRCDIR}/config/make_libafs_tree.pl \
 		-sn $(SYS_NAME) \
 		-os $(MKAFS_OSTYPE) \
@@ -504,9 +510,10 @@ libafs_tree: export lwp_depinstall rx_depinstall vlserver_depinstall tvlserver_d
 libuafs_setup: config export
 	${CONFIGTOOL} src/libuafs/MakefileProto.${MKAFS_OSTYPE} src/libuafs/Makefile ${SYS_NAME}
 
-libuafs: libuafs_setup vlserver_depinstall tvlserver_depinstall rx_depinstall fsint_depinstall \
-		auth_depinstall dir_depinstall libacl_depinstall rxkad_depinstall \
-		ubik_depinstall afs_depinstall kauth_depinstall ptserver_depinstall \
+libuafs: libuafs_setup vlserver_depinstall tvlserver_depinstall rx_depinstall \
+		fsint_depinstall auth_depinstall dir_depinstall \
+		libacl_depinstall rxkad_depinstall ubik_depinstall \
+		afs_depinstall kauth_depinstall ptserver_depinstall \
 		rxstat_depinstall lwp_depinstall sys_depinstall cmd hcrypto \
 		rxosd_generated
 	+set -x; \
@@ -604,7 +611,7 @@ libafsauthent: audit auth kauth ubik util sys ptserver volser vlserver libafsrpc
 kopenafs: config sys
 	+${COMPILE_PART1} kopenafs ${COMPILE_PART2}
 
-libadmin_real: 
+libadmin_real:
 	+${COMPILE_PART1} libadmin ${COMPILE_PART2}
 	+${COMPILE_PART1} libadmin/adminutil ${COMPILE_PART2}
 	+${COMPILE_PART1} libadmin/vos ${COMPILE_PART2}
@@ -663,20 +670,20 @@ afsosd: vol fsint libafsrpc libafsauthent
 build_tools: config comerr rxgen
 	+${COMPILE_PART1} util ${COMPILE_PART2A} buildtools_clean
 
-finale: project cmd comerr afsd butc tbutc tbudb @ENABLE_KERNEL_MODULE@ libuafs audit kauth log \
-	ptserver tptserver scout bu_utils ubik uss bozo @VFSCK@ volser tvolser tsalvaged \
-	dviced dvolser libafscp\
-	venus venustests update xstat afsmonitor rxdebug libafsrpc rfc3961 hcrypto \
-	libafsauthent libadmin man-pages \
-	tools platform kopenafs authtools $(DIR_roken) afsosd
+finale: project cmd comerr afsd butc tbutc tbudb @ENABLE_KERNEL_MODULE@ \
+	libuafs audit kauth log ptserver tptserver scout bu_utils ubik uss \
+	bozo @VFSCK@ volser tvolser tsalvaged dviced dvolser libafscp \
+	venus venustests update xstat afsmonitor rxdebug libafsrpc rfc3961 \
+	hcrypto libafsauthent libadmin man-pages tools platform kopenafs \
+	authtools $(DIR_roken) afsosd
 	+${COMPILE_PART1} finale ${COMPILE_PART2}
 
-finale_nolibafs: project cmd comerr afsd butc tbutc tbudb libuafs audit kauth log \
-	ptserver tptserver scout bu_utils ubik tubik uss bozo @VFSCK@ volser tvolser tsalvaged \
-	dviced dvolser libafscp\
-	venus venustests update xstat afsmonitor rxdebug libafsrpc rfc3961 hcrypto \
-	libafsauthent libadmin man-pages \
-	tools platform kopenafs authtools $(DIR_roken) afsosd
+finale_nolibafs: project cmd comerr afsd butc tbutc tbudb libuafs audit kauth \
+	log ptserver tptserver scout bu_utils ubik tubik uss bozo @VFSCK@ \
+	volser tvolser tsalvaged dviced dvolser libafscp venus venustests \
+	update xstat afsmonitor rxdebug libafsrpc rfc3961 hcrypto \
+	libafsauthent libadmin man-pages tools platform kopenafs \
+	authtools $(DIR_roken) afsosd
 	+${COMPILE_PART1} finale ${COMPILE_PART2}
 
 rpctestlib: util fsint rx opr libafsrpc libafsauthent
@@ -794,7 +801,7 @@ clean2:
 	YES) \
 		${COMPILE_PART1} afsosd ${COMPILE_CLEAN} ;; \
 	*) \
-		echo Not building afsosd ;; \
+		echo Not cleaning afsosd ;; \
 	esac
 	-${COMPILE_PART1} tests ${COMPILE_CLEAN}
 	-${COMPILE_PART1} crypto/hcrypto ${COMPILE_CLEAN}
@@ -803,6 +810,7 @@ clean2:
 	-(cd src; /bin/rm cscope.out)
 	-(cd src/libafs; /bin/rm -rf afs afsint config rx)
 	-(cd src/libuafs; /bin/rm -rf afs afsint config rx)
+	-(cd tests ${COMPILE_CLEAN})
 	-/bin/rm -rf ${TOP_INCDIR} ${TOP_LIBDIR} ${TOP_JLIBDIR}
 	-/bin/rm -rf libafs_tree ${SYS_NAME}
 
@@ -852,7 +860,6 @@ distclean: clean
 	src/config/Makefile.lwp \
 	src/config/Makefile.lwptool \
 	src/config/Makefile.pthread \
-	src/config/Makefile.shared \
 	src/config/Makefile.version \
 	src/config/Makefile.version-CML \
 	src/config/Makefile.version-NOCML \
@@ -975,10 +982,36 @@ distclean: clean
 	    rm -f src/afsosd/Makefile ; \
 	fi
 	if test -d doc/man-pages ; then \
-	    rm -f doc/man-pages/Makefile doc/man-pages/install-man ; \
+	    /bin/rm -f doc/man-pages/Makefile doc/man-pages/install-man ; \
+	fi
+	if test -d doc/doxygen ; then \
+	    /bin/rm -f doc/doxygen/Doxyfile ; \
+	fi
+	if test -d src/afsosd ; then \
+	    /bin/rm -f src/afsosd/Makefile ; \
 	fi
 
 pristine: distclean
-	/bin/rm -f src/config/afsconfig.h.in configure configure-libafs aclocal.m4
+	/bin/rm -f src/config/afsconfig.h.in configure configure-libafs \
+	aclocal.m4 \
+	libtool \
+	build-tools/ltmain.sh \
+	src/cf/libtool.m4 \
+	src/cf/ltoptions.m4 \
+	src/cf/ltsugar.m4 \
+	src/cf/ltversion.m4 \
+	src/cf/lt~obsolete.m4
+	if test -d doc/xml ; then \
+	    /bin/rm -f doc/xml/mobi-fixup.xsl ; \
+	fi
+	if test -d doc/man-pages ; then \
+	    /bin/rm -rf doc/man-pages/man1 \
+		doc/man-pages/man3 \
+		doc/man-pages/man5 \
+		doc/man-pages/man8 ; \
+	fi
+	for i in doc/man-pages/pod*/*.pod.in; do \
+	    /bin/rm -f $${i%.in}; \
+	done
 
 maintainer-clean: pristine

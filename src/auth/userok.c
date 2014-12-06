@@ -46,7 +46,6 @@ UserListFileName(struct afsconf_dir *adir,
     strcompose(buffer, len, adir->name, "/", AFSDIR_ULIST_FILE, (char *)NULL);
 }
 
-#if !defined(UKERNEL)
 int
 afsconf_CheckAuth(void *arock, struct rx_call *acall)
 {
@@ -57,7 +56,6 @@ afsconf_CheckAuth(void *arock, struct rx_call *acall)
     UNLOCK_GLOBAL_MUTEX;
     return rc;
 }
-#endif /* !defined(UKERNEL) */
 
 static int
 GetNoAuthFlag(struct afsconf_dir *adir)
@@ -294,6 +292,7 @@ afsconf_DeleteUser(struct afsconf_dir *adir, char *name)
  * GetNthIdentity or GetNthUser. The parameter 'id' indicates
  * whether we are counting all identities (if true), or just
  * ones which can be represented by the old-style interfaces
+ * We return -1 for EOF, 0 for success, and >0 for all errors.
  */
 static int
 GetNthIdentityOrUser(struct afsconf_dir *dir, int count,
@@ -314,12 +313,14 @@ GetNthIdentityOrUser(struct afsconf_dir *dir, int count,
     if (!bp) {
 	UNLOCK_GLOBAL_MUTEX;
 	free(tbuffer);
-	return EIO;
+	return -1;
     }
     while (1) {
 	code = BufioGets(bp, tbuffer, AFSDIR_PATH_MAX);
-	if (code < 0)
+	if (code < 0) {
+	    code = -1;
 	    break;
+	}
 
 	code = ParseLine(tbuffer, &fileUser);
 	if (code != 0)
@@ -356,7 +357,10 @@ GetNthIdentityOrUser(struct afsconf_dir *dir, int count,
  * @param[out] identity
  * 	A pointer to the Nth identity
  * @returns
- * 	0 on success, non-zero on failure
+ *      status code
+ * @retval 0 Success
+ * @retval -1 We have searched beyond the end of the list.
+ * @retval >0 Error
  */
 
 int
@@ -384,11 +388,17 @@ afsconf_GetNthIdentity(struct afsconf_dir *dir, int count,
  * @param abufferLen
  * 	The length of the buffer passed in abuffer
  * @returns
- * 	0 on success, non-zero on failure
+ *      status code
+ * @retval 0 Success
+ * @retval 1 Either an EPERM error, or we have searched beyond the end of the
+ *           list.
+ * @retval >1 All other errors.
  *
  * This function is deprecated, all new callers should use
  * GetNthIdentity instead. This function is particularly dangerous
- * as it will hide any new-style identities from callers.
+ * as it will hide any new-style identities from callers. It is also
+ * impossible to distinguish an EPERM error from a normal end-of-file
+ * condition with this function.
  */
 
 int
@@ -402,6 +412,11 @@ afsconf_GetNthUser(struct afsconf_dir *adir, afs_int32 an, char *abuffer,
     if (code == 0) {
 	strlcpy(abuffer, identity->displayName, abufferLen);
 	rx_identity_free(&identity);
+    }
+    if (code == -1) {
+	/* The new functions use -1 to indicate EOF, but the old interface
+	 * uses 1 to indicate EOF. */
+	code = 1;
     }
     return code;
 }
